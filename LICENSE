@@ -1,0 +1,8 @@
+SPDX-License-Identifier: GPL-2.0-only
+
+GlobalTalk AFP Client is licensed under GNU GPL version 2.0 only.
+The full license text is in COPYING.
+
+The adapter is intended to be combined with Netatalk Client 0.9.5.
+Netatalk/libatalk components retain their upstream copyright and license
+notices.

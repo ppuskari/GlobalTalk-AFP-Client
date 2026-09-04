@@ -1,0 +1,18 @@
+{
+  ".gitignore": "e92735201606eef64ba146583c93461ab0672eef21fb6a3c83d59a31b2c6dcd7",
+  "COPYING": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+  "LICENSE": "39b4b9ebb782d3752b478dbf332e0be6abe5ba06abf8e16714eaac03c520b2f6",
+  "README.md": "cf351959d78621769ba24c6ebc1a28bda56afda885000eb2a72ab86e643be99b",
+  "STATUS.md": "1b505c7bbac5caf42281f0fd550c28bdbc57565d0a00359681e2923264bc6b11",
+  "VALIDATION.txt": "a0c92a6f3aa839fd138c72005a5c808142b2cb163762a2be1c788a11ca3f3029",
+  "docs/ARCHITECTURE.md": "01f33b15a73d4cd2232ffaac27ac089073a9ec9086941eac1bc69fc80f4a1832",
+  "docs/TEST-PLAN.md": "b027ba352afb594a788366cb2dbe9d74440692889e6801a35dee74efc36d2abf",
+  "overlay/include/asp_transport.h": "f626c08c17a82aa940e53f9fb2c183dae1204ee30bc121665c90ec3057c2cd06",
+  "overlay/lib/asp_transport.c": "085457609ba6033d666b3ed21b298cb8fb70581b7f500cd83b79d3199d8cf1cf",
+  "powershell/Initialize-Repo.ps1": "73154c06491600506e8144fd787e10be529a11064795335010d93d044c2eaba3",
+  "scripts/bootstrap-linux.sh": "765642cd9bfd218b5b39ca68655f1aea1247854307699f06f79197b3274a3920",
+  "scripts/build-linux.sh": "22fac0170183e7ec38fd71ab39c12bf6fe2858af15f2bf16450d93460f0cf612",
+  "scripts/test-globaltalk.sh": "f3a1c91ece770274e97d31a48ce975e63504b9123455c400183f5b65345e8c62",
+  "tools/__pycache__/apply_ddp_transport.cpython-313.pyc": "49e715e3735ab13cde4e776e0781ceb8880bbcf4fd3fbe2ce11cd7ec75ca70c1",
+  "tools/apply_ddp_transport.py": "84a922d7f8cb1f445bc6a864d8fb9377f5398d5ee537fac516ca2b0a58b7edad"
+}

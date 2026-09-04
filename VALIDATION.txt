@@ -1,0 +1,11 @@
+GlobalTalk AFP Client - generated package validation
+======================================================
+PASS  apply_ddp_transport.py Python syntax
+PASS  ASP source required transport elements
+PASS  README contains -r -V -M netatalk archive example
+PASS  PowerShell repo initializer targets C:\AppleIIgsDev
+PASS  Linux bootstrap pins Netatalk Client tag 0.9.5
+PASS  GPLv2 COPYING included
+
+NETWORK PENDING: compile/run requires Linux Netatalk VM
+NETWORK PENDING: AF_APPLETALK / GlobalTalk hardware validation
