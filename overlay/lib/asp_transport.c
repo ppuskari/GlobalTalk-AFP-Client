@@ -187,6 +187,21 @@ static int synthesize_dsi_reply(struct afp_server *server,
     return 0;
 }
 
+static void asp_apply_transport_limits(struct afp_server *server)
+{
+    /*
+     * DSI/TCP can advertise a large receive buffer, but one classic ASP
+     * command reply is bounded by eight ATP responses of 578 data bytes.
+     * Netatalk Client derives FPEnumerate.MaxReplySize from server->bufsize,
+     * so expose the true ASP ceiling here instead of its normal 128 KiB DSI
+     * buffer.  The incoming allocation may remain larger; bufsize is the
+     * logical transport receive limit used by the AFP serializers.
+     */
+    server->tx_quantum = AFPC_ASP_COMMAND_DATA;
+    server->rx_quantum = AFPC_ASP_MAX_DATA;
+    server->bufsize = (int)(sizeof(struct dsi_header) + AFPC_ASP_MAX_DATA);
+}
+
 int asp_transport_configure(struct afp_server *server,
                             const char *object,
                             const char *zone)
@@ -213,8 +228,7 @@ int asp_transport_configure(struct afp_server *server,
             sizeof(ctx->zone));
 
     server->asp = ctx;
-    server->tx_quantum = AFPC_ASP_COMMAND_DATA;
-    server->rx_quantum = AFPC_ASP_MAX_DATA;
+    asp_apply_transport_limits(server);
     return 0;
 }
 
@@ -321,8 +335,7 @@ int asp_transport_connect(struct afp_server *server,
     }
 
     server->connect_state = SERVER_STATE_CONNECTING;
-    server->tx_quantum = AFPC_ASP_COMMAND_DATA;
-    server->rx_quantum = AFPC_ASP_MAX_DATA;
+    asp_apply_transport_limits(server);
 
     if (full_status && asp_get_status(server) < 0) {
         return -1;
@@ -493,6 +506,12 @@ int asp_transport_send(struct afp_server *server,
      * read(server->fd). ASP has already assembled the entire reply above.
      */
     parser_result = afp_reply(subcommand, server, other);
+
+    if (parser_result < 0) {
+        log_for_client(NULL, AFPFSD, LOG_ERR,
+                       "ASP AFP reply parser failed: command %u, payload %zu bytes, result %d",
+                       (unsigned int)subcommand, payload_len, (int)result);
+    }
 
     if (result != 0) {
         return result;
