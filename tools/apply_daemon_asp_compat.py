@@ -47,6 +47,26 @@ def patch_file(path):
         text = text.replace(old, new, 1)
         changed = True
 
+    # Reconnect/resume discovery is host-address based for DSI/TCP.  For
+    # AppleTalk URLs, avoid meaningless DNS resolution and match reusable ASP
+    # sessions by AFP server name instead.
+    old = (
+        "    address = afp_get_address(priv, url->servername, url->port);\n"
+        "    afp_lock_server_list();"
+    )
+    new = (
+        "    if (url->protocol != AT) {\n"
+        "        address = afp_get_address(priv, url->servername, url->port);\n"
+        "    }\n"
+        "    afp_lock_server_list();"
+    )
+    if new not in text:
+        count = text.count(old)
+        if count != 2:
+            die("expected 2 reconnect DNS probes, found {}".format(count))
+        text = text.replace(old, new)
+        changed = True
+
     if changed:
         with io.open(path, "w", encoding="utf-8") as f:
             f.write(text)
