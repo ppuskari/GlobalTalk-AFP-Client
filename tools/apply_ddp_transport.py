@@ -31,11 +31,12 @@ def replace_once(path, old, new):
 if not (UP / "meson.build").exists():
     die("not a Netatalk Client checkout: {}".format(UP))
 
-# New source/header.
-shutil.copy2(ROOT / "overlay/include/asp_transport.h",
-             UP / "include/asp_transport.h")
-shutil.copy2(ROOT / "overlay/lib/asp_transport.c",
-             UP / "lib/asp_transport.c")
+# Python 3.4 pathlib predates the os.PathLike protocol, so shutil needs
+# ordinary strings rather than Path objects.
+shutil.copy2(str(ROOT / "overlay/include/asp_transport.h"),
+             str(UP / "include/asp_transport.h"))
+shutil.copy2(str(ROOT / "overlay/lib/asp_transport.c"),
+             str(UP / "lib/asp_transport.c"))
 
 # ----------------------------------------------------------------------
 # include/afp.h: private ASP transport context.
