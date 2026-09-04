@@ -49,6 +49,14 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
+# Netatalk's public <atalk/asp.h> includes <atalk/afp.h>, whose AFP enum/type
+# names collide with Netatalk Client's own afp_protocol.h.  Our transport only
+# needs ASP wire constants, so place a local wire-only shim first in the
+# client's include path while continuing to use the installed ATP/NBP headers.
+mkdir -p "$CLIENT/include/atalk"
+cp "$ROOT/overlay/include/atalk/asp.h" \
+   "$CLIENT/include/atalk/asp.h"
+
 echo
 echo "Patched tree: $CLIENT"
 echo "Next: $ROOT/scripts/build-linux.sh"
