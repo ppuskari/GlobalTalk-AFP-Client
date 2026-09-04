@@ -23,12 +23,13 @@ def replace_once(path, old, new):
     text = path.read_text()
     count = text.count(old)
     if count != 1:
-        die(f"{path}: expected guard once, found {count}: {old[:72]!r}")
+        die("{}: expected guard once, found {}: {!r}".format(
+            path, count, old[:72]))
     path.write_text(text.replace(old, new, 1))
 
 
 if not (UP / "meson.build").exists():
-    die(f"not a Netatalk Client checkout: {UP}")
+    die("not a Netatalk Client checkout: {}".format(UP))
 
 # New source/header.
 shutil.copy2(ROOT / "overlay/include/asp_transport.h",
@@ -365,4 +366,4 @@ if text.count(old) != 1:
     die("lib/afp_url.c: afp_parse_url guard missing/non-unique")
 p.write_text(text.replace(old, new, 1))
 
-print(f"AFP-over-DDP overlay applied to: {UP}")
+print("AFP-over-DDP overlay applied to: {}".format(UP))
