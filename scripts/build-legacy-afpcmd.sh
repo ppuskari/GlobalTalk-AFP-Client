@@ -12,13 +12,20 @@ if [ ! -f "$CLIENT/lib/asp_transport.c" ]; then
     exit 1
 fi
 
-# Netatalk's public <atalk/asp.h> includes its own AFP declarations, which
-# collide with Netatalk Client 0.9.5's afp_protocol.h.  The DDP transport
-# only needs ASP wire constants, so install our local wire-only shim ahead
-# of /usr/local/include in the include search path.
+# Refresh generated overlay files so a git pull is enough to pick up transport
+# fixes without forcing a destructive re-bootstrap of the patched 0.9.5 tree.
 mkdir -p "$CLIENT/include/atalk"
 cp "$ROOT/overlay/include/atalk/asp.h" \
    "$CLIENT/include/atalk/asp.h"
+cp "$ROOT/overlay/include/asp_transport.h" \
+   "$CLIENT/include/asp_transport.h"
+cp "$ROOT/overlay/lib/asp_transport.c" \
+   "$CLIENT/lib/asp_transport.c"
+
+# Netatalk Client's stateless daemon historically uses server->fd >= 0 as a
+# proxy for a live DSI/TCP connection.  ASP/DDP has no DSI TCP fd, so make
+# those checks transport-aware before compiling afpsld.
+python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
 
 CC=${CC:-cc}
 
@@ -28,7 +35,8 @@ mkdir -p "$OBJ"
 CFLAGS="-O2 -g -std=gnu11 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64"
 CFLAGS="$CFLAGS -DAFPCLIENT_INTERNAL"
 CFLAGS="$CFLAGS -DNETATALK_CLIENT_VERSION=\"0.9.5-ddp-legacy\""
-CFLAGS="$CFLAGS -DBINDIR=\"/usr/local/bin\""
+# stateless.c auto-spawns BINDIR/afpsld.  Keep the helper beside gt-afp-pull.
+CFLAGS="$CFLAGS -DBINDIR=\"$OUT\""
 CFLAGS="$CFLAGS -DHAVE_SYS_XATTR_H"
 
 INCLUDES="-I$CLIENT -I$CLIENT/include -I$CLIENT/lib"
@@ -78,46 +86,76 @@ lib/users.c
 lib/utils.c
 "
 
-EXTRA_SOURCES="
+PULL_SOURCES="
 daemon/stateless.c
 daemon/metadata.c
 cmdline/cmdline_afp.c
 "
 
-OBJECTS=""
+DAEMON_SOURCES="
+daemon/daemon.c
+daemon/commands.c
+daemon/daemon_client.c
+"
+
+CORE_OBJECTS=""
+PULL_OBJECTS=""
+DAEMON_OBJECTS=""
 
 compile_client_source()
 {
     src=$1
-    base=$(basename "$src" .c)
-    obj="$OBJ/$base.o"
+    stem=$(printf '%s' "$src" | sed 's#[/.]#_#g')
+    obj="$OBJ/$stem.o"
     echo "CC  $src"
     "$CC" $CFLAGS $INCLUDES \
         -include "$ROOT/legacy/legacy_compat.h" \
         -c "$CLIENT/$src" -o "$obj"
-    OBJECTS="$OBJECTS $obj"
+    LAST_OBJ="$obj"
 }
 
-for src in $LIB_SOURCES $EXTRA_SOURCES; do
+for src in $LIB_SOURCES; do
     compile_client_source "$src"
+    CORE_OBJECTS="$CORE_OBJECTS $LAST_OBJ"
 done
 
-for src in legacy_compat.c legacy_batch_main.c; do
-    base=$(basename "$src" .c)
-    obj="$OBJ/$base.o"
-    echo "CC  legacy/$src"
-    "$CC" $CFLAGS $INCLUDES \
-        -include "$ROOT/legacy/legacy_compat.h" \
-        -c "$ROOT/legacy/$src" -o "$obj"
-    OBJECTS="$OBJECTS $obj"
+for src in $PULL_SOURCES; do
+    compile_client_source "$src"
+    PULL_OBJECTS="$PULL_OBJECTS $LAST_OBJ"
 done
+
+for src in $DAEMON_SOURCES; do
+    compile_client_source "$src"
+    DAEMON_OBJECTS="$DAEMON_OBJECTS $LAST_OBJ"
+done
+
+LEGACY_COMPAT_OBJ="$OBJ/legacy_compat.o"
+echo "CC  legacy/legacy_compat.c"
+"$CC" $CFLAGS $INCLUDES \
+    -include "$ROOT/legacy/legacy_compat.h" \
+    -c "$ROOT/legacy/legacy_compat.c" -o "$LEGACY_COMPAT_OBJ"
+
+LEGACY_MAIN_OBJ="$OBJ/legacy_batch_main.o"
+echo "CC  legacy/legacy_batch_main.c"
+"$CC" $CFLAGS $INCLUDES \
+    -include "$ROOT/legacy/legacy_compat.h" \
+    -c "$ROOT/legacy/legacy_batch_main.c" -o "$LEGACY_MAIN_OBJ"
+
+LIBS="-L/usr/local/lib -latalk -lpthread -ldl"
+
+echo "LD  $OUT/afpsld"
+"$CC" -o "$OUT/afpsld" \
+    $CORE_OBJECTS $DAEMON_OBJECTS $LEGACY_COMPAT_OBJ \
+    $LIBS
 
 echo "LD  $OUT/gt-afp-pull"
-"$CC" -o "$OUT/gt-afp-pull" $OBJECTS \
-    -L/usr/local/lib -latalk -lpthread -ldl
+"$CC" -o "$OUT/gt-afp-pull" \
+    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_MAIN_OBJ \
+    $LIBS
 
 echo
-echo "Legacy batch client built:"
+echo "Legacy AFP-over-DDP tools built:"
+echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
 echo
 echo "Usage test:"
