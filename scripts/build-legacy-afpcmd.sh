@@ -12,6 +12,14 @@ if [ ! -f "$CLIENT/lib/asp_transport.c" ]; then
     exit 1
 fi
 
+# Netatalk's public <atalk/asp.h> includes its own AFP declarations, which
+# collide with Netatalk Client 0.9.5's afp_protocol.h.  The DDP transport
+# only needs ASP wire constants, so install our local wire-only shim ahead
+# of /usr/local/include in the include search path.
+mkdir -p "$CLIENT/include/atalk"
+cp "$ROOT/overlay/include/atalk/asp.h" \
+   "$CLIENT/include/atalk/asp.h"
+
 CC=${CC:-cc}
 
 rm -rf "$OUT"
