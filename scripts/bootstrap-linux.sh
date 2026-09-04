@@ -49,6 +49,11 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
+# Netatalk's stateless daemon historically treats server->fd >= 0 as the
+# definition of a live AFP connection.  ASP/DDP is a valid transport without
+# a DSI TCP descriptor, so make those guards transport-aware.
+python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
+
 # Netatalk's public <atalk/asp.h> includes <atalk/afp.h>, whose AFP enum/type
 # names collide with Netatalk Client's own afp_protocol.h.  Our transport only
 # needs ASP wire constants, so place a local wire-only shim first in the
