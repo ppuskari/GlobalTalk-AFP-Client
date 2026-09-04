@@ -356,16 +356,29 @@ int asp_transport_open_session(struct afp_server *server)
         }
     }
 
+    /*
+     * Classic ASP OpenSession user bytes are:
+     *   function, workstation session socket, ASP version MSB, version LSB.
+     * ASP version 1.0 is 0x0100.  Modern Netatalk ignores the version bytes,
+     * but classic Apple AFP servers validate them and reject 0x0000.
+     */
     request[0] = ASPFUNC_OPEN;
     request[1] = atp_sockaddr(ctx->atp)->sat_port;
-    request[2] = 0;
-    request[3] = 0;
+    request[2] = 0x01;
+    request[3] = 0x00;
+
+    log_for_client(NULL, AFPFSD, LOG_NOTICE,
+                   "ASP OpenSession request: WSS %u, version 1.0",
+                   (unsigned int)request[1]);
 
     if (asp_xact(ctx, &ctx->listener,
                  request, sizeof(request), 1,
                  headers,
                  payload, sizeof(payload),
                  &payload_len) < 0) {
+        log_for_client(NULL, AFPFSD, LOG_ERR,
+                       "ASP OpenSession transaction failed: %s",
+                       strerror(errno));
         return -1;
     }
 
@@ -374,8 +387,11 @@ int asp_transport_open_session(struct afp_server *server)
 
     if (asp_error != ASPERR_OK) {
         log_for_client(NULL, AFPFSD, LOG_ERR,
-                       "ASP OpenSession failed: 0x%04x",
-                       (unsigned int)asp_error);
+                       "ASP OpenSession failed: reply %02x %02x %02x %02x",
+                       (unsigned int)headers[0][0],
+                       (unsigned int)headers[0][1],
+                       (unsigned int)headers[0][2],
+                       (unsigned int)headers[0][3]);
         errno = ECONNREFUSED;
         return -1;
     }
