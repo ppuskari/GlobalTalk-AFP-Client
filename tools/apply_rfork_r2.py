@@ -13,6 +13,7 @@ UP = (Path(sys.argv[1]).resolve()
       else ROOT / "work" / "netatalk-client")
 
 MARKER = "GLOBALTALK ASP RFORK R2"
+LOW_MARKER = "GLOBALTALK ASP RFORK R2: a short kFPNoErr read is not EOF."
 
 
 def die(msg):
@@ -34,33 +35,10 @@ low = UP / "lib" / "lowlevel.c"
 if not asp.exists() or not low.exists():
     die("patched Netatalk Client tree not found: {}".format(UP))
 
-text = asp.read_text()
-if MARKER in text:
-    print("ASP resource-fork R2 already applied: {}".format(UP))
-    raise SystemExit(0)
-
-# The AFP command itself is limited to one 578-byte ASP command packet, but
-# FPWrite data is delivered separately by ASP WriteContinue and may use all
-# eight ATP response packets: 8 * 578 = 4624 bytes.
-replace_once(
-    asp,
-    "    server->tx_quantum = AFPC_ASP_COMMAND_DATA;\n",
-    "    /* {}: WRTCONT can carry the full eight-packet ASP data quantum. */\n"
-    "    server->tx_quantum = AFPC_ASP_MAX_DATA;\n".format(MARKER),
-)
-
-text = asp.read_text()
-start = text.find("int asp_transport_send(struct afp_server *server,")
-end = text.find("int asp_transport_tickle(struct afp_server *server)")
-if start < 0 or end < 0 or end <= start:
-    die("asp_transport.c: could not isolate asp_transport_send()")
-if text.find("int asp_transport_send(struct afp_server *server,", start + 1) >= 0:
-    die("asp_transport.c: asp_transport_send() marker is not unique")
-
 replacement = r'''/* GLOBALTALK ASP RFORK R2
  *
- * FPWrite over ASP is a two-sided transaction. The client first submits an
- * ASPFUNC_WRITE containing only the AFP FPWrite parameter block. The AFP
+ * FPWrite over ASP is a two-sided transaction.  The client first submits an
+ * ASPFUNC_WRITE containing only the AFP FPWrite parameter block.  The AFP
  * server then sends ASPFUNC_WRTCONT back to the client's workstation session
  * socket and the client answers that ATP request with the actual fork bytes.
  * The final ATP response to ASPFUNC_WRITE contains the normal AFP result and
@@ -236,7 +214,7 @@ static int asp_write_xact(struct afpc_asp *ctx,
     for (;;) {
         struct sockaddr_at from = ctx->session;
 
-        /* func == 0 means TREQ or TRESP. This is what lets us service the
+        /* func == 0 means TREQ or TRESP.  This is what lets us service the
          * server's WriteContinue request while our FPWrite ATP request is
          * still outstanding. */
         rc = atp_rsel(ctx->atp, &from, 0);
@@ -423,14 +401,34 @@ int asp_transport_send(struct afp_server *server,
 
 '''
 
-asp.write_text(text[:start] + replacement + text[end:])
+asp_done = MARKER in asp.read_text()
+if not asp_done:
+    # The command parameter block is one ASP packet, but FPWrite data is
+    # returned through WRTCONT and can occupy all eight ATP responses.
+    replace_once(
+        asp,
+        "    server->tx_quantum = AFPC_ASP_COMMAND_DATA;\n",
+        "    /* {}: WRTCONT can carry the full eight-packet ASP data quantum. */\n"
+        "    server->tx_quantum = AFPC_ASP_MAX_DATA;\n".format(MARKER),
+    )
 
-# Netatalk Client 0.9.5 incorrectly treats a short successful read as EOF.
-# Classic AFP/ASP servers can legally return kFPNoErr with less than the
-# requested count (the ASP command-reply ceiling is 4624 bytes). Continue
-# from the returned offset; only kFPEOFErr establishes EOF.
+    text = asp.read_text()
+    start = text.find("int asp_transport_send(struct afp_server *server,")
+    end = text.find("int asp_transport_tickle(struct afp_server *server)")
+    if start < 0 or end < 0 or end <= start:
+        die("asp_transport.c: could not isolate asp_transport_send()")
+    if text.find("int asp_transport_send(struct afp_server *server,", start + 1) >= 0:
+        die("asp_transport.c: asp_transport_send() marker is not unique")
+    asp.write_text(text[:start] + replacement + text[end:])
+
 old = """        totalsize += buffer.size;\n\n        if ((size_t)buffer.size < chunksize) {\n            *eof = 1;\n            break;\n        }\n"""
 new = """        /* GLOBALTALK ASP RFORK R2: a short kFPNoErr read is not EOF.\n         * Continue from the returned offset; only explicit kFPEOFErr above\n         * establishes EOF. */\n        totalsize += buffer.size;\n"""
-replace_once(low, old, new)
 
-print("Applied ASP resource-fork R2 transport fixes to: {}".format(UP))
+low_done = LOW_MARKER in low.read_text()
+if not low_done:
+    replace_once(low, old, new)
+
+if asp_done and low_done:
+    print("ASP resource-fork R2 already applied: {}".format(UP))
+else:
+    print("Applied ASP resource-fork R2 transport fixes to: {}".format(UP))
