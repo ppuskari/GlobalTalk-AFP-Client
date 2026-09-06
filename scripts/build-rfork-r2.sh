@@ -3,7 +3,8 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CLIENT="$ROOT/work/netatalk-client"
-OUT="$ROOT/build-rfork-r2"
+OUT=${RFORK_OUT:-"$ROOT/build-rfork-r2"}
+VERSION=${RFORK_VERSION:-"0.9.5-ddp-rfork-r2"}
 OBJ="$OUT/obj"
 ATPR1="$ROOT/legacy/atalk-r1/libatalk-atp-r1.a"
 
@@ -76,7 +77,7 @@ mkdir -p "$OBJ"
 
 CFLAGS="-O2 -g -std=gnu11 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64"
 CFLAGS="$CFLAGS -DAFPCLIENT_INTERNAL"
-CFLAGS="$CFLAGS -DNETATALK_CLIENT_VERSION=\"0.9.5-ddp-rfork-r2\""
+CFLAGS="$CFLAGS -DNETATALK_CLIENT_VERSION=\"$VERSION\""
 CFLAGS="$CFLAGS -DBINDIR=\"$OUT\""
 CFLAGS="$CFLAGS -DHAVE_SYS_XATTR_H"
 
@@ -194,11 +195,11 @@ echo "LD  $OUT/gt-afp-pull"
     $LIBS
 
 echo
-echo "ASP resource-fork R2 tools built:"
+echo "ASP resource-fork tools built:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
 echo
-echo "Version marker: 0.9.5-ddp-rfork-r2"
+echo "Version marker: $VERSION"
 echo "Private libatalk: $ATPR1"
 echo
 echo "GlobalTalk pull example:"
