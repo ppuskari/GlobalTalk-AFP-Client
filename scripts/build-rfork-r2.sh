@@ -25,7 +25,33 @@ cp "$ROOT/overlay/lib/asp_transport.c" \
    "$CLIENT/lib/asp_transport.c"
 
 python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
-python3 "$ROOT/tools/apply_rfork_r2.py" "$CLIENT"
+
+# Debian 8 Jessie ships Python 3.4. Its pathlib.Path lacks read_text() and
+# write_text(). Execute the guarded R2 patcher through the same compatibility
+# shims used by bootstrap-linux.sh so the test branch remains Jessie-native.
+python3 - "$ROOT/tools/apply_rfork_r2.py" "$CLIENT" <<'PY'
+import io
+import pathlib
+import runpy
+import sys
+
+if not hasattr(pathlib.Path, "read_text"):
+    def read_text(self, encoding="utf-8", errors=None):
+        with io.open(str(self), "r", encoding=encoding, errors=errors) as f:
+            return f.read()
+    pathlib.Path.read_text = read_text
+
+if not hasattr(pathlib.Path, "write_text"):
+    def write_text(self, data, encoding="utf-8", errors=None):
+        with io.open(str(self), "w", encoding=encoding, errors=errors) as f:
+            return f.write(data)
+    pathlib.Path.write_text = write_text
+
+script = sys.argv[1]
+target = sys.argv[2]
+sys.argv = [script, target]
+runpy.run_path(script, run_name="__main__")
+PY
 
 # Old libatalk 2.2.4 can wedge after ATP retry exhaustion. Reuse the private
 # ATP-R1 archive from the previous hardware-test package; never modify the
