@@ -14,12 +14,13 @@ fi
 # R2B-R2E diagnostics intentionally edited generated files under work/.
 # Reconstruct a clean production candidate from the pinned nested checkout,
 # without resetting or cleaning the parent GlobalTalk-AFP-Client repository.
+# Netatalk Client 0.9.5 keeps its stateless public header at include/afpsl.h.
 for path in \
     lib/lowlevel.c \
     lib/afp_url.c \
     daemon/metadata.c \
     daemon/commands.c \
-    include/netatalk-client/afpsl.h
+    include/afpsl.h
 do
     git -C "$CLIENT" show "HEAD:$path" > "$CLIENT/$path"
 done
@@ -32,9 +33,9 @@ python3 "$ROOT/tools/apply_ddp_rooted_url.py" "$CLIENT"
 # remains a resource fork after FPGetFileDirParms clears afp_file_info.
 python3 "$ROOT/tools/apply_rfork_r3_forkstate.py" "$CLIENT"
 
-# Reduce path-based resource-fork reopen/query/close overhead. This changes
-# only the stateless metadata batch; ASP still uses the proven 4624-byte
-# transaction ceiling internally.
+# Reduce path-based resource-fork reopen/query/close overhead. The pinned
+# 0.9.5 stateless payload ceiling is 16384 bytes. ASP still uses the proven
+# 4624-byte transaction ceiling internally.
 python3 "$ROOT/tools/apply_rfork_r3_batch.py" "$CLIENT"
 
 # The R2 builder owns the proven ASP WRTCONT, eight-packet response handling,
@@ -50,7 +51,7 @@ Integrated hardware-proven correctness plus conservative receive batching:
 - preserve AFP 2.x resource fork state across pre-open parameter query
 - short successful ASP read is not EOF
 - ASP resource-fork transport/WRTCONT fixes from R2
-- 32 KiB stateless metadata batch; ASP wire quantum remains 4624 bytes
+- 16 KiB stateless metadata batch; ASP wire quantum remains 4624 bytes
 EOF
 
 # Production candidate must not accidentally contain the diagnostic overlays.
@@ -81,6 +82,6 @@ echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
 echo
 echo "Version marker: 0.9.5-ddp-rfork-r3"
-echo "Metadata batch: 32768 bytes"
+echo "Metadata batch: 16384 bytes"
 echo "ASP response ceiling: 4624 bytes"
 echo "R3 contains no R2B/R2C/R2D/R2E diagnostic overlays."

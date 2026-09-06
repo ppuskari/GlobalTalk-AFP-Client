@@ -41,11 +41,12 @@ R3 includes:
 - FinderInfo and Netatalk AppleDouble preservation
 - private libatalk ATP retry-exhaustion shim
 - ASP Write/WriteContinue transport implementation
-- 32 KiB stateless metadata batching for lower resource-fork reopen overhead
+- 16 KiB stateless metadata batching for lower resource-fork reopen overhead
 
-The ASP wire response ceiling remains **4624 bytes**. The 32 KiB metadata
-batch only keeps a resource fork open across several ordinary ASP reads; it
-does not enlarge the AFP/ATP wire transaction.
+The ASP wire response ceiling remains **4624 bytes**. The **16384-byte**
+metadata batch is capped at Netatalk Client 0.9.5's own
+`MAX_CLIENT_RESPONSE`; it only keeps a resource fork open across several
+ordinary ASP reads and does not enlarge the AFP/ATP wire transaction.
 
 ## Hardware validation
 
@@ -93,7 +94,7 @@ The patched checkout is created in:
 work/netatalk-client
 ```
 
-The bootstrap now canonicalizes the hardware-proven rooted DDP pathname form.
+The bootstrap canonicalizes the hardware-proven rooted DDP pathname form.
 
 ## DDP URL syntax
 
@@ -122,8 +123,10 @@ extended-attribute metadata using Netatalk's `.AppleDouble/name` and
 
 The R2F PageSpinner transfer exposed a 4096-byte metadata staircase and
 roughly 20 kbit/s effective resource payload throughput, with receive bursts
-up to roughly 72 kbit/s. R3 batches 32768 bytes per stateless metadata request
-to reduce repeated remote fork opens.
+up to roughly 72 kbit/s. R3 batches 16384 bytes per stateless metadata request
+to reduce repeated remote fork opens. For PageSpinner that reduces the
+path-based resource requests from 652 to 163 while retaining normal 4624-byte
+ASP reads.
 
 Run the exact PageSpinner correctness/performance benchmark with:
 

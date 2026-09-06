@@ -43,19 +43,24 @@ Build: `scripts/build-rfork-r3.sh`
 
 R3 folds the hardware-proven R2F corrections into production-named patchers
 and removes the R2B/R2C/R2D/R2E diagnostic overlays from the build path.
-It also raises the stateless metadata batch from 4096 to 32768 bytes while
-leaving the ASP wire response ceiling at 4624 bytes.
+It raises the stateless metadata batch from 4096 to 16384 bytes while leaving
+the ASP wire response ceiling at 4624 bytes.
+
+The 16384-byte batch is deliberately tied to the pinned Netatalk Client 0.9.5
+`MAX_CLIENT_RESPONSE` value. The 0.9.5 stateless client separately reserves a
+4096-byte log buffer plus framing slack, so R3 does not rely on the larger IPC
+framing used by newer Netatalk Client revisions.
 
 The purpose is to reduce repeated path-based resource-fork open/query/close
-cycles.  For the 2668283-byte PageSpinner resource fork, the metadata layer
-needs 652 requests at 4096 bytes but only 82 requests at 32768 bytes.  Each
-full R3 batch is still serviced internally by normal ASP transactions, up to
-eight reads for a 32 KiB batch.
+cycles. For the 2668283-byte PageSpinner resource fork, the metadata layer
+needs 652 requests at 4096 bytes but only 163 requests at 16384 bytes. Each
+full R3 batch is still serviced internally by ordinary ASP transactions,
+requiring four reads for a 16 KiB batch.
 
 ## R2F performance baseline
 
 The PageSpinner R2F transfer showed visible 4096-byte growth steps and
-receive traffic that was bursty rather than sustained.  The complete resource
+receive traffic that was bursty rather than sustained. The complete resource
 fork took roughly 18 minutes, corresponding to about 20 kbit/s effective
 resource payload throughput, while instantaneous AppleTalk receive bursts
 were observed from idle up to roughly 72 kbit/s.
@@ -71,7 +76,7 @@ resource-fork KiB/s and kbit/s.
 
 ASP `Write` / `WriteContinue` transport support is implemented in the R2/R3
 transport layer, including server `ASPFUNC_WRTCONT` handling and multi-packet
-ATP responses.  Hardware write/upload validation remains pending and is the
+ATP responses. Hardware write/upload validation remains pending and is the
 next major protocol gate after R3 read/performance regression testing.
 
 ## Remaining validation before promotion
