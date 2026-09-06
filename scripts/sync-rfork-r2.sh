@@ -23,7 +23,7 @@ echo "Remote:     $REMOTE"
 echo "Branch:     $BRANCH"
 echo
 
-git remote get-url "$REMOTE"
+git config --get "remote.$REMOTE.url"
 git fetch --prune "$REMOTE"
 
 git show-ref --verify --quiet "refs/remotes/$REMOTE/$BRANCH" || {
@@ -32,10 +32,10 @@ git show-ref --verify --quiet "refs/remotes/$REMOTE/$BRANCH" || {
 }
 
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-    git switch "$BRANCH"
+    git checkout "$BRANCH"
     git merge --ff-only "$REMOTE/$BRANCH"
 else
-    git switch --track -c "$BRANCH" "$REMOTE/$BRANCH"
+    git checkout -b "$BRANCH" --track "$REMOTE/$BRANCH"
 fi
 
 echo
