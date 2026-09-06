@@ -65,12 +65,32 @@ fork took roughly 18 minutes, corresponding to about 20 kbit/s effective
 resource payload throughput, while instantaneous AppleTalk receive bursts
 were observed from idle up to roughly 72 kbit/s.
 
-R3 should be compared against this baseline with:
+## R3 hardware performance result
 
-`sh scripts/benchmark-pagespinner-r3.sh`
+The 16 KiB R3 build compiled successfully on Debian Jessie and completed the
+same PageSpinner transfer on September 6, 2026.
 
-The benchmark validates the final AppleDouble structure and reports effective
-resource-fork KiB/s and kbit/s.
+Measured from the benchmark start time to the completed transfer log mtime:
+
+- elapsed time: `434` seconds (`7m14s`)
+- effective resource rate: `6.00 KiB/s`
+- effective resource rate: `49.18 kbit/s`
+
+This is approximately a 2.5x end-to-end throughput improvement over the R2F
+baseline while keeping the proven 4624-byte ASP transaction ceiling unchanged.
+The observed receive graph also showed denser, higher bursts with less idle
+time between them, consistent with the reduction from 652 to 163 path-based
+resource-fork requests.
+
+The first R3 benchmark wrapper invocation completed the AFP transfer but its
+post-processing exited on Jessie because the script was launched through
+`/bin/sh` and used Bash-only `PIPESTATUS`. The wrapper has since been fixed to
+re-exec itself under Bash when invoked with `sh`; this wrapper defect did not
+change the AFP transfer binary or the measured transfer itself.
+
+Final structural verification of the exact R3 output should still confirm the
+same R2F AppleDouble invariants: 2669024 total bytes and resource entry ID 2,
+offset 741, length 2668283.
 
 ## Write path
 
@@ -81,13 +101,12 @@ next major protocol gate after R3 read/performance regression testing.
 
 ## Remaining validation before promotion
 
-1. Build R3 cleanly on Debian Jessie.
-2. Re-run PageSpinner and require the exact 2669024-byte AppleDouble result.
-3. Compare R3 effective throughput and receive smoothness against R2F.
-4. Pull ordinary data-fork files and verify byte identity.
-5. Pull small, boundary-size, and large resource forks.
-6. Exercise recursive directory copies with mixed data/resource forks.
-7. Verify FinderInfo behavior through a local Netatalk round trip.
-8. Hardware-test AFP writes, including payloads crossing 578 and 4624 bytes.
-9. After those gates pass, promote the integration branch into the normal
+1. Confirm the completed R3 PageSpinner file has the exact 2669024-byte
+   AppleDouble result and resource entry ID 2 / offset 741 / length 2668283.
+2. Pull ordinary data-fork files and verify byte identity.
+3. Pull small, boundary-size, and large resource forks.
+4. Exercise recursive directory copies with mixed data/resource forks.
+5. Verify FinderInfo behavior through a local Netatalk round trip.
+6. Hardware-test AFP writes, including payloads crossing 578 and 4624 bytes.
+7. After those gates pass, promote the integration branch into the normal
    project build/mainline and retire test-only R2 diagnostic entrypoints.
