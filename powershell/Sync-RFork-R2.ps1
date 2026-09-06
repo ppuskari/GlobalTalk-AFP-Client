@@ -31,7 +31,7 @@ try {
     Write-Host "Branch:     $Branch"
     Write-Host ''
 
-    & git remote get-url $Remote
+    & git config --get "remote.$Remote.url"
     if ($LASTEXITCODE -ne 0) {
         throw "Git remote '$Remote' was not found."
     }
@@ -50,8 +50,8 @@ try {
     $HaveLocal = ($LASTEXITCODE -eq 0)
 
     if ($HaveLocal) {
-        & git switch $Branch
-        if ($LASTEXITCODE -ne 0) { throw 'git switch failed.' }
+        & git checkout $Branch
+        if ($LASTEXITCODE -ne 0) { throw 'git checkout failed.' }
 
         & git merge --ff-only "$Remote/$Branch"
         if ($LASTEXITCODE -ne 0) {
@@ -64,7 +64,7 @@ try {
         }
     }
     else {
-        & git switch --track -c $Branch "$Remote/$Branch"
+        & git checkout -b $Branch --track "$Remote/$Branch"
         if ($LASTEXITCODE -ne 0) {
             throw 'Could not create the local tracking branch.'
         }
