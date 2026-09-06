@@ -1,4 +1,12 @@
 #!/bin/bash
+
+# Jessie normally maps /bin/sh to dash. If this script is invoked as
+# "sh scripts/benchmark-pagespinner-r3.sh", re-exec under Bash before using
+# Bash-only PIPESTATUS so the documented command remains valid.
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 set -u
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -134,7 +142,7 @@ if [ "$RC" -eq 0 ] && \
    [ "$AD_SIZE" -eq "$EXPECTED_AD" ] && \
    [ "$STRUCT_RC" -eq 0 ]; then
     echo
-echo "PASS: PageSpinner data fork, resource fork, AppleDouble structure, and clean exit all match."
+    echo "PASS: PageSpinner data fork, resource fork, AppleDouble structure, and clean exit all match."
     exit 0
 fi
 
