@@ -1,5 +1,7 @@
 work/
 build/
+build-*/
+legacy/atalk-r1/
 *.o
 *.so
 *.a

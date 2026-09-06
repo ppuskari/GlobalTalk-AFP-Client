@@ -8,100 +8,107 @@ recursive copy logic, resource-fork handling, FinderInfo handling, and
 metadata writers. This project replaces only the DSI/TCP transport path when
 an `afp+ddp://` URL is used.
 
-## Phase 1 target
+## Current integration build
 
-Phase 1 is deliberately an archive/pull client:
+The hardware-proven read path is being consolidated on:
 
-- NBP lookup of `Object:AFPServer@Zone`
-- ASP GetStatus over ATP/DDP
-- ASP OpenSession
-- AFP guest (`No User Authent`) login
-- volume enumeration/open
-- directory enumeration
-- data-fork and resource-fork reads
-- recursive `afpcmd get`
-- Netatalk Client 0.9.5 metadata modes, including Netatalk AppleDouble
-- clean AFP logout / ASP close
+```text
+integration/rfork-r3-20260906
+```
 
-The transport is synchronous on purpose. This is ideal for `afpcmd` and
-archive crawling, and keeps the first GlobalTalk hardware test independent
-of the DSI TCP receive loop.
+Build on the Debian Jessie / AppleTalk VM with:
 
-Classic ASP carries at most eight 578-byte response payloads per ATP
-transaction, so Phase 1 advertises a 4624-byte receive quantum. Netatalk
-Client can then chunk larger fork reads.
+```sh
+sh scripts/build-rfork-r3.sh
+```
 
-Large client-to-server writes requiring ASP Write/WriteContinue are a later
-phase. They are not required to archive data from remote guest servers.
+This produces:
+
+```text
+build-rfork-r3/afpsld
+build-rfork-r3/gt-afp-pull
+```
+
+R3 includes:
+
+- rooted `afp+ddp://OBJECT@ZONE/VOLUME/path` handling
+- NBP lookup and ASP session establishment
+- guest AFP login
+- eight-packet ATP response reassembly
+- correct AFP 2.x data/resource fork selection
+- large resource-fork reads
+- short-success-not-EOF behavior
+- FinderInfo and Netatalk AppleDouble preservation
+- private libatalk ATP retry-exhaustion shim
+- ASP Write/WriteContinue transport implementation
+- 32 KiB stateless metadata batching for lower resource-fork reopen overhead
+
+The ASP wire response ceiling remains **4624 bytes**. The 32 KiB metadata
+batch only keeps a resource fork open across several ordinary ASP reads; it
+does not enlarge the AFP/ATP wire transaction.
+
+## Hardware validation
+
+On September 6, 2026, R2F successfully retrieved PageSpinner from the AFP 2.1
+server `Blackbird` in zone `BaroNet`:
+
+```text
+afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac/The Software!!/PageSpinner 3.0.2/PageSpinner
+```
+
+The transfer exited cleanly with:
+
+```text
+Data fork:                       0 bytes
+Remote resource fork:     2668283 bytes
+AppleDouble sidecar:       2669024 bytes
+Resource entry ID:                2
+Resource entry offset:          741
+Resource entry length:      2668283
+```
+
+The final sidecar size is exact: `741 + 2668283 = 2669024`.
+
+See `STATUS.md` for the current validation ledger.
 
 ## Linux VM prerequisites
 
 - working kernel AppleTalk (`AF_APPLETALK`)
-- Netatalk 4.5.1 built with AppleTalk support
+- Netatalk built with AppleTalk support
 - installed `libatalk` and Netatalk headers
-- Meson, Ninja, a C compiler, Git and Python 3
-- normal Netatalk Client 0.9.5 build dependencies
+- a C compiler, Git and Python 3
+- Debian Jessie / Python 3.4 remains supported by the integration patchers
 
-## Build
+## Bootstrap
+
+A fresh Netatalk Client 0.9.5 work tree can be prepared with:
 
 ```sh
-git clone https://github.com/ppuskari/GlobalTalk-AFP-Client.git
-cd GlobalTalk-AFP-Client
-
-./scripts/bootstrap-linux.sh
-./scripts/build-linux.sh
+sh scripts/bootstrap-linux.sh
 ```
 
-The patched Netatalk Client checkout is created in:
+The patched checkout is created in:
 
 ```text
 work/netatalk-client
 ```
 
+The bootstrap now canonicalizes the hardware-proven rooted DDP pathname form.
+
 ## DDP URL syntax
 
-Phase 1 is guest oriented:
+Guest-oriented URL syntax:
 
 ```text
 afp+ddp://OBJECT@ZONE/VOLUME/path
 ```
 
+If the zone is omitted, `*` is used.
+
 Example:
 
 ```sh
-./work/netatalk-client/build/cmdline/afpcmd \
-  'afp+ddp://BLIHNMNTE01@HuskyNet Global'
-```
-
-If the zone is omitted, `*` is used:
-
-```sh
-./work/netatalk-client/build/cmdline/afpcmd \
-  'afp+ddp://BLIHNMNTE01'
-```
-
-## First hardware validation
-
-```sh
-nbplkup '=:AFPServer@HuskyNet Global'
-
-./scripts/test-globaltalk.sh \
-  'BLIHNMNTE01' \
-  'HuskyNet Global'
-```
-
-Initial success gate:
-
-1. NBP resolves the server.
-2. ASP GetStatus returns a parseable AFP status block.
-3. ASP OpenSession returns a session socket and SID.
-4. guest FPLogin succeeds.
-5. FPGetSrvrParms lists volumes.
-
-After that, a full recursive archival pull can be done directly in batch mode:
-
-```sh
-./work/netatalk-client/build/cmdline/afpcmd \
+./build-rfork-r3/gt-afp-pull \
   -r -V -M netatalk \
   'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/remote/path' \
   /srv/netatalk/archive
@@ -109,10 +116,50 @@ After that, a full recursive archival pull can be done directly in batch mode:
 
 `-r` is recursive and `-M netatalk` writes FinderInfo, ResourceFork and
 extended-attribute metadata using Netatalk's `.AppleDouble/name` and
-`name::EA` representation.  That is the mode to use when the destination
-directory is then exported by the local Netatalk server.
+`name::EA` representation.
+
+## Performance benchmark
+
+The R2F PageSpinner transfer exposed a 4096-byte metadata staircase and
+roughly 20 kbit/s effective resource payload throughput, with receive bursts
+up to roughly 72 kbit/s. R3 batches 32768 bytes per stateless metadata request
+to reduce repeated remote fork opens.
+
+Run the exact PageSpinner correctness/performance benchmark with:
+
+```sh
+sh scripts/benchmark-pagespinner-r3.sh
+```
+
+The benchmark requires the exact final AppleDouble structure and reports
+elapsed time plus effective resource-fork KiB/s and kbit/s.
+
+## Safe local synchronization
+
+Linux:
+
+```sh
+sh scripts/sync-integration-r3.sh
+```
+
+Windows PowerShell 5.1, defaulting to
+`C:\AppleIIgsDev\GlobalTalk-AFP-Client`:
+
+```powershell
+.\powershell\Sync-Integration-R3.ps1
+```
+
+Both sync paths refuse dirty work trees and use fast-forward-only Git updates.
+They never run `git reset --hard` or `git clean`.
+
+## Write path
+
+ASP `Write` / `WriteContinue` support is implemented, including server
+`ASPFUNC_WRTCONT` requests and multi-packet ATP responses. Hardware
+write/upload validation is still pending and follows the R3 read/performance
+regression gate.
 
 ## Provenance
 
-The adapter targets Netatalk Client 0.9.5 and links against Netatalk 4.5.1
+The adapter targets Netatalk Client 0.9.5 and links against Netatalk
 `libatalk` for NBP and ATP. See `docs/ARCHITECTURE.md`.
