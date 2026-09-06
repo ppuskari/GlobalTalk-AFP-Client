@@ -23,7 +23,7 @@ if [ "$TAG" != "0.9.5" ]; then
     exit 1
 fi
 
-# Python 3.4 pathlib lacks Path.read_text()/write_text().  Install tiny
+# Python 3.4 pathlib lacks Path.read_text()/write_text(). Install tiny
 # compatibility shims before executing the guarded overlay patcher.
 python3 - "$ROOT/tools/apply_ddp_transport.py" "$CLIENT" <<'PY'
 import io
@@ -49,13 +49,18 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
+# Canonicalize the hardware-proven rooted AFP pathname form. The base DDP
+# overlay historically inserted a relative post-volume path; the stateless
+# helper needs /path after the volume name for Classic AFP traversal.
+python3 "$ROOT/tools/apply_ddp_rooted_url.py" "$CLIENT"
+
 # Netatalk's stateless daemon historically treats server->fd >= 0 as the
-# definition of a live AFP connection.  ASP/DDP is a valid transport without
+# definition of a live AFP connection. ASP/DDP is a valid transport without
 # a DSI TCP descriptor, so make those guards transport-aware.
 python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
 
 # Netatalk's public <atalk/asp.h> includes <atalk/afp.h>, whose AFP enum/type
-# names collide with Netatalk Client's own afp_protocol.h.  Our transport only
+# names collide with Netatalk Client's own afp_protocol.h. Our transport only
 # needs ASP wire constants, so place a local wire-only shim first in the
 # client's include path while continuing to use the installed ATP/NBP headers.
 mkdir -p "$CLIENT/include/atalk"
@@ -64,4 +69,5 @@ cp "$ROOT/overlay/include/atalk/asp.h" \
 
 echo
 echo "Patched tree: $CLIENT"
+echo "Rooted afp+ddp paths: enabled"
 echo "Next: $ROOT/scripts/build-linux.sh"
