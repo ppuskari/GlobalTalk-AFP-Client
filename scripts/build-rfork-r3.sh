@@ -71,6 +71,9 @@ strings "$OUT/gt-afp-pull" | grep '0.9.5-ddp-rfork-r3' >/dev/null
 if [ -f "$ROOT/tests/test_rfork_r2_model.py" ]; then
     python3 "$ROOT/tests/test_rfork_r2_model.py"
 fi
+if [ -f "$ROOT/tests/test_rfork_r3_model.py" ]; then
+    python3 "$ROOT/tests/test_rfork_r3_model.py"
+fi
 
 echo
 echo "ASP resource-fork R3 integration tools ready:"
