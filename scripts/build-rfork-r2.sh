@@ -31,7 +31,7 @@ python3 "$ROOT/tools/apply_rfork_r2.py" "$CLIENT"
 # ATP-R1 archive from the previous hardware-test package; never modify the
 # installed /usr/local/lib/libatalk.a.
 if [ ! -f "$ATPR1" ]; then
-    if [ ! -x "$ROOT/libatalk-atp-r1/build-atalk-r1.sh" ]; then
+    if [ ! -f "$ROOT/libatalk-atp-r1/build-atalk-r1.sh" ]; then
         echo "ERROR: ATP-R1 helper package missing." >&2
         exit 1
     fi
