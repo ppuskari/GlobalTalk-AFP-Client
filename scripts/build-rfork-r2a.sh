@@ -3,7 +3,6 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CLIENT="$ROOT/work/netatalk-client"
-R2OUT="$ROOT/build-rfork-r2"
 OUT="$ROOT/build-rfork-r2a"
 
 if [ ! -f "$CLIENT/lib/afp_url.c" ]; then
@@ -14,17 +13,13 @@ fi
 
 # R2A restores exactly one proven behavior from the saved pre-R2 Jessie tree:
 # afp+ddp URL paths presented to Netatalk Client start with '/'.  Do this
-# before the normal R2 build.  build-rfork-r2.sh refreshes asp_transport.c but
-# deliberately does not regenerate afp_url.c, so the rooted-path fix remains
-# in force while all other R2 code stays unchanged.
+# before the normal R2 compile pipeline.  All ASP/resource-fork R2 code stays
+# unchanged; only URL path normalization differs.
 python3 "$ROOT/tools/apply_rfork_r2a_path.py" "$CLIENT"
 
-sh "$ROOT/scripts/build-rfork-r2.sh"
-
-rm -rf "$OUT"
-mkdir -p "$OUT"
-cp "$R2OUT/afpsld" "$OUT/afpsld"
-cp "$R2OUT/gt-afp-pull" "$OUT/gt-afp-pull"
+RFORK_OUT="$OUT" \
+RFORK_VERSION="0.9.5-ddp-rfork-r2a" \
+    sh "$ROOT/scripts/build-rfork-r2.sh"
 
 cat > "$OUT/BUILD-ID.txt" <<'EOF'
 GlobalTalk AFP Client ASP Resource Fork R2A
@@ -32,7 +27,7 @@ R2 baseline plus rooted afp+ddp path compatibility fix.
 EOF
 
 echo
-echo "ASP resource-fork R2A test tools built:"
+echo "ASP resource-fork R2A test tools ready:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
 echo
