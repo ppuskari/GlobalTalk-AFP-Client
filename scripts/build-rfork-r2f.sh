@@ -12,16 +12,19 @@ if [ ! -d "$CLIENT/.git" ]; then
 fi
 
 # R2C/R2D/R2E deliberately instrumented generated source files in work/.
-# R2F is the first real correctness target after diagnosis, so refresh only
-# the generated files those diagnostics touched from the pinned nested HEAD.
-# This does not modify the parent GlobalTalk-AFP-Client repository.
+# R2F is the first real correctness target after diagnosis, so refresh the
+# files those diagnostics touched from the pinned nested HEAD. afp_url.c is
+# also refreshed, then its GlobalTalk afp+ddp parser is rebuilt explicitly
+# below; that parser is our overlay, not upstream Netatalk Client source.
+# None of this modifies the parent GlobalTalk-AFP-Client repository.
 git -C "$CLIENT" show HEAD:lib/lowlevel.c > "$CLIENT/lib/lowlevel.c"
 git -C "$CLIENT" show HEAD:lib/afp_url.c > "$CLIENT/lib/afp_url.c"
 git -C "$CLIENT" show HEAD:daemon/metadata.c > "$CLIENT/daemon/metadata.c"
 git -C "$CLIENT" show HEAD:daemon/commands.c > "$CLIENT/daemon/commands.c"
 
-# Restore the pre-R2 Jessie-proven rooted afp+ddp pathname behavior.
-python3 "$ROOT/tools/apply_rfork_r2a_path.py" "$CLIENT"
+# Recreate the GlobalTalk DDP URL parser directly from clean pinned source,
+# with the pre-R2 Jessie-proven leading '/' behavior already included.
+python3 "$ROOT/tools/apply_rfork_r2f_ddp_url.py" "$CLIENT"
 
 # Apply the upstream-proven AFP 2.x fork-state correction before the normal R2
 # patcher adds the short-success-not-EOF and ASP resource-fork transport fixes.
