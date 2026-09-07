@@ -27,6 +27,7 @@ This produces:
 ```text
 build-rfork-r3/afpsld
 build-rfork-r3/gt-afp-pull
+build-rfork-r3/gt-afp-ls
 ```
 
 R3 includes:
@@ -42,15 +43,36 @@ R3 includes:
 - private libatalk ATP retry-exhaustion shim
 - ASP Write/WriteContinue transport implementation
 - 16 KiB stateless metadata batching for lower resource-fork reopen overhead
+- lightweight `gt-afp-ls` volume/directory browsing
 
 The ASP wire response ceiling remains **4624 bytes**. The **16384-byte**
 metadata batch is capped at Netatalk Client 0.9.5's own
 `MAX_CLIENT_RESPONSE`; it only keeps a resource fork open across several
 ordinary ASP reads and does not enlarge the AFP/ATP wire transaction.
 
+## Volume and path browser
+
+`gt-afp-ls` uses the same R3 connection/authentication path as `gt-afp-pull`
+and reuses Netatalk Client 0.9.5's existing directory-list implementation.
+It adds no new AFP transport behavior.
+
+A server-only URL lists available volumes:
+
+```sh
+./build-rfork-r3/gt-afp-ls \
+  'afp+ddp://Blackbird@BaroNet'
+```
+
+A URL containing a volume or nested path lists that directory:
+
+```sh
+./build-rfork-r3/gt-afp-ls \
+  'afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac'
+```
+
 ## Hardware validation
 
-On September 6, 2026, R2F successfully retrieved PageSpinner from the AFP 2.1
+On September 6, 2026, R3 successfully retrieved PageSpinner from the AFP 2.1
 server `Blackbird` in zone `BaroNet`:
 
 ```text
@@ -66,11 +88,22 @@ AppleDouble sidecar:       2669024 bytes
 Resource entry ID:                2
 Resource entry offset:          741
 Resource entry length:      2668283
+Elapsed:                         434 seconds
+Effective resource rate:      49.18 kbit/s
 ```
 
 The final sidecar size is exact: `741 + 2668283 = 2669024`.
+This is about a 2.5x end-to-end throughput improvement over the R2F baseline.
 
-See `STATUS.md` for the current validation ledger.
+A second recursive hardware regression against:
+
+```text
+afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac/The Software!!/MATM 1.5
+```
+
+also passed with exit code 0. It copied two nonzero data forks, one zero-length
+data fork, and AppleDouble metadata/resource forks for all three files. See
+`STATUS.md` for exact sizes and the remaining promotion gates.
 
 ## Linux VM prerequisites
 
@@ -159,8 +192,8 @@ They never run `git reset --hard` or `git clean`.
 
 ASP `Write` / `WriteContinue` support is implemented, including server
 `ASPFUNC_WRTCONT` requests and multi-packet ATP responses. Hardware
-write/upload validation is still pending and follows the R3 read/performance
-regression gate.
+write/upload validation is still pending and follows the remaining R3 read
+regression gates.
 
 ## Provenance
 
