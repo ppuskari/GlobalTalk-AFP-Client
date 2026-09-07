@@ -120,6 +120,27 @@ therefore complete. Exact source-vs-destination data-fork byte identity remains
 a separate validation item until the remote source bytes are independently
 hashed or otherwise compared.
 
+## R3 ASP automatic AFP-version compatibility
+
+Hardware validation against `Babylon 5` in zone `BabCom` exposed a classic
+mixed-era server behavior: generic automatic version selection failed, while
+explicit AFP 1.1, 2.0, 2.1, and 2.2 logins all succeeded over ASP/DDP.
+
+R3 now caps automatic AFP selection for ASP/DDP sessions at the highest
+advertised version at or below AFP 2.2. Explicit `-A` selections remain exact,
+and non-ASP/TCP behavior is unchanged.
+
+Hardware validation after the fix:
+
+- `gt-afp-ls 'afp+ddp://Babylon 5@BabCom'`: PASS
+- volumes enumerated: `Green Sector (ReadOnly)`, `Zocalo (Public)`
+- `gt-afp-ls 'afp+ddp://Blackbird@BaroNet'`: PASS
+- volume enumerated: `Blackbird Public`
+
+This closes the ASP automatic AFP-version negotiation compatibility gate and
+proves that the transport-aware cap fixes Babylon 5 without regressing
+Blackbird.
+
 ## Write path
 
 ASP `Write` / `WriteContinue` transport support is implemented in the R2/R3
