@@ -361,7 +361,7 @@ def main():
     paths = {
         "server_h": os.path.join(root, "include", "afp_server.h"),
         "afpsl_h": os.path.join(root, "include", "afpsl.h"),
-        "mid_h": os.path.join(root, "lib", "midlevel.h"),
+        "mid_h": os.path.join(root, "include", "midlevel.h"),
         "mid_c": os.path.join(root, "lib", "midlevel.c"),
         "stateless": os.path.join(root, "daemon", "stateless.c"),
         "commands": os.path.join(root, "daemon", "commands.c"),
