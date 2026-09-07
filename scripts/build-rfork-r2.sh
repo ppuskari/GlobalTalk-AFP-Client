@@ -182,6 +182,12 @@ echo "CC  legacy/legacy_batch_main.c"
     -include "$ROOT/legacy/legacy_compat.h" \
     -c "$ROOT/legacy/legacy_batch_main.c" -o "$LEGACY_MAIN_OBJ"
 
+LEGACY_LS_OBJ="$OBJ/legacy_ls_main.o"
+echo "CC  legacy/legacy_ls_main.c"
+"$CC" $CFLAGS $INCLUDES \
+    -include "$ROOT/legacy/legacy_compat.h" \
+    -c "$ROOT/legacy/legacy_ls_main.c" -o "$LEGACY_LS_OBJ"
+
 LIBS="$ATPR1 -lpthread -ldl"
 
 echo "LD  $OUT/afpsld"
@@ -194,10 +200,16 @@ echo "LD  $OUT/gt-afp-pull"
     $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_MAIN_OBJ \
     $LIBS
 
+echo "LD  $OUT/gt-afp-ls"
+"$CC" -o "$OUT/gt-afp-ls" \
+    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_LS_OBJ \
+    $LIBS
+
 echo
 echo "ASP resource-fork tools built:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
+echo "  $OUT/gt-afp-ls"
 echo
 echo "Version marker: $VERSION"
 echo "Private libatalk: $ATPR1"
@@ -206,3 +218,7 @@ echo "GlobalTalk pull example:"
 echo "  $OUT/gt-afp-pull -r -V -M netatalk \\" 
 echo "    'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/path' \\" 
 echo "    /srv/netatalk/archive"
+echo
+echo "GlobalTalk volume/path browser examples:"
+echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet'"
+echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet/Blackbird Public/path'"
