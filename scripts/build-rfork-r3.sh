@@ -20,6 +20,8 @@ for path in \
     lib/afp_url.c \
     daemon/metadata.c \
     daemon/commands.c \
+    cmdline/cmdline_afp.c \
+    cmdline/cmdline_afp.h \
     include/afpsl.h
 do
     git -C "$CLIENT" show "HEAD:$path" > "$CLIENT/$path"
@@ -39,7 +41,8 @@ python3 "$ROOT/tools/apply_rfork_r3_forkstate.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r3_batch.py" "$CLIENT"
 
 # The R2 builder owns the proven ASP WRTCONT, eight-packet response handling,
-# short-success-not-EOF logic, stateless ASP compatibility, and ATP-R1 shim.
+# short-success-not-EOF logic, stateless ASP compatibility, ATP-R1 shim, and
+# the explicit AFP-version selector used to probe older servers.
 RFORK_OUT="$OUT" \
 RFORK_VERSION="0.9.5-ddp-rfork-r3" \
     sh "$ROOT/scripts/build-rfork-r2.sh"
@@ -53,6 +56,7 @@ Integrated hardware-proven correctness plus conservative receive batching:
 - ASP resource-fork transport/WRTCONT fixes from R2
 - 16 KiB stateless metadata batch; ASP wire quantum remains 4624 bytes
 - gt-afp-ls volume and directory browser using the same R3 session path
+- explicit AFP version selection: auto, 1.1, 2.0, 2.1, 2.2
 EOF
 
 # Production candidate must not accidentally contain the diagnostic overlays.
@@ -84,4 +88,5 @@ echo
 echo "Version marker: 0.9.5-ddp-rfork-r3"
 echo "Metadata batch: 16384 bytes"
 echo "ASP response ceiling: 4624 bytes"
+echo "AFP version selector: auto, 1.1, 2.0, 2.1, 2.2"
 echo "R3 contains no R2B/R2C/R2D/R2E diagnostic overlays."

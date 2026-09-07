@@ -26,6 +26,7 @@ cp "$ROOT/overlay/lib/asp_transport.c" \
    "$CLIENT/lib/asp_transport.c"
 
 python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
+python3 "$ROOT/tools/apply_afp_version_selector.py" "$CLIENT"
 
 # Debian 8 Jessie ships Python 3.4. Its pathlib.Path lacks read_text() and
 # write_text(). Execute the guarded R2 patcher through the same compatibility
@@ -221,4 +222,5 @@ echo "    /srv/netatalk/archive"
 echo
 echo "GlobalTalk volume/path browser examples:"
 echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet'"
+echo "  $OUT/gt-afp-ls -A 2.0 'afp+ddp://Babylon 5@BabCom'"
 echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet/Blackbird Public/path'"
