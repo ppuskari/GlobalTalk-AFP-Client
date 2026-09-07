@@ -52,22 +52,21 @@ Integrated hardware-proven correctness plus conservative receive batching:
 - short successful ASP read is not EOF
 - ASP resource-fork transport/WRTCONT fixes from R2
 - 16 KiB stateless metadata batch; ASP wire quantum remains 4624 bytes
+- gt-afp-ls volume and directory browser using the same R3 session path
 EOF
 
 # Production candidate must not accidentally contain the diagnostic overlays.
-if strings "$OUT/gt-afp-pull" | \
-    grep -E 'R2B META|R2C READ|R2D READ|R2E OPEN' >/dev/null 2>&1; then
-    echo "ERROR: diagnostic marker leaked into R3 gt-afp-pull." >&2
-    exit 1
-fi
-
-if strings "$OUT/afpsld" | \
-    grep -E 'R2B META|R2C READ|R2D READ|R2E OPEN' >/dev/null 2>&1; then
-    echo "ERROR: diagnostic marker leaked into R3 afpsld." >&2
-    exit 1
-fi
+for binary in gt-afp-pull gt-afp-ls afpsld
+do
+    if strings "$OUT/$binary" | \
+        grep -E 'R2B META|R2C READ|R2D READ|R2E OPEN' >/dev/null 2>&1; then
+        echo "ERROR: diagnostic marker leaked into R3 $binary." >&2
+        exit 1
+    fi
+done
 
 strings "$OUT/gt-afp-pull" | grep '0.9.5-ddp-rfork-r3' >/dev/null
+strings "$OUT/gt-afp-ls" | grep '0.9.5-ddp-rfork-r3' >/dev/null
 
 if [ -f "$ROOT/tests/test_rfork_r2_model.py" ]; then
     python3 "$ROOT/tests/test_rfork_r2_model.py"
@@ -80,6 +79,7 @@ echo
 echo "ASP resource-fork R3 integration tools ready:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
+echo "  $OUT/gt-afp-ls"
 echo
 echo "Version marker: 0.9.5-ddp-rfork-r3"
 echo "Metadata batch: 16384 bytes"
