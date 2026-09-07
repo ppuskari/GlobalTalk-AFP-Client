@@ -18,7 +18,7 @@ for path in \
     lib/afp_url.c \
     lib/server.c \
     lib/midlevel.c \
-    lib/midlevel.h \
+    include/midlevel.h \
     daemon/metadata.c \
     daemon/commands.c \
     daemon/stateless.c \
