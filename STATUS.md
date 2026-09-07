@@ -94,6 +94,32 @@ post-processing exited on Jessie because the script was launched through
 re-exec itself under Bash when invoked with `sh`; this wrapper defect did not
 change the AFP transfer binary or the measured transfer itself.
 
+## R3 mixed recursive-tree regression
+
+The R3 read path also completed a recursive pull of:
+
+`afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac/The Software!!/MATM 1.5`
+
+Observed result:
+
+- client exit code: `0`
+- elapsed time: `122` seconds
+- total data-fork bytes reported by the client: `373530`
+- `MATM 1.5` data fork: `365240` bytes
+- `MATM 1.5 Readme` data fork: `8290` bytes
+- `Register` data fork: `0` bytes
+- `.AppleDouble/MATM 1.5`: `305305` bytes
+- `.AppleDouble/MATM 1.5 Readme`: `121593` bytes
+- `.AppleDouble/Register`: `94842` bytes
+- `.AppleDouble/.Parent`: `741` bytes
+
+This proves recursive traversal over a mixed classic-Mac tree containing two
+nonzero data forks, one zero-length data fork, and AppleDouble metadata for all
+three files. The recursive mixed data/resource-fork regression gate is
+therefore complete. Exact source-vs-destination data-fork byte identity remains
+a separate validation item until the remote source bytes are independently
+hashed or otherwise compared.
+
 ## Write path
 
 ASP `Write` / `WriteContinue` transport support is implemented in the R2/R3
@@ -103,10 +129,9 @@ next major protocol gate after R3 read/performance regression testing.
 
 ## Remaining validation before promotion
 
-1. Pull ordinary data-fork files and verify byte identity.
+1. Verify ordinary data-fork byte identity against the remote source.
 2. Pull small and boundary-size resource forks.
-3. Exercise recursive directory copies with mixed data/resource forks.
-4. Verify FinderInfo behavior through a local Netatalk round trip.
-5. Hardware-test AFP writes, including payloads crossing 578 and 4624 bytes.
-6. After those gates pass, promote the integration branch into the normal
+3. Verify FinderInfo behavior through a local Netatalk round trip.
+4. Hardware-test AFP writes, including payloads crossing 578 and 4624 bytes.
+5. After those gates pass, promote the integration branch into the normal
    project build/mainline and retire test-only R2 diagnostic entrypoints.
