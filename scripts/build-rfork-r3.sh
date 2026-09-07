@@ -18,6 +18,7 @@ fi
 for path in \
     lib/lowlevel.c \
     lib/afp_url.c \
+    lib/server.c \
     daemon/metadata.c \
     daemon/commands.c \
     cmdline/cmdline_afp.c \
@@ -40,6 +41,11 @@ python3 "$ROOT/tools/apply_rfork_r3_forkstate.py" "$CLIENT"
 # 4624-byte transaction ceiling internally.
 python3 "$ROOT/tools/apply_rfork_r3_batch.py" "$CLIENT"
 
+# Automatic AFP negotiation must be transport-aware. Some dual-stack servers
+# advertise AFP 3.x for TCP while their classic ASP/DDP service accepts AFP
+# only through 2.2. Keep explicit -A requests unchanged.
+python3 "$ROOT/tools/apply_afp_at_version_cap.py" "$CLIENT"
+
 # The R2 builder owns the proven ASP WRTCONT, eight-packet response handling,
 # short-success-not-EOF logic, stateless ASP compatibility, ATP-R1 shim, and
 # the explicit AFP-version selector used to probe older servers.
@@ -57,6 +63,7 @@ Integrated hardware-proven correctness plus conservative receive batching:
 - 16 KiB stateless metadata batch; ASP wire quantum remains 4624 bytes
 - gt-afp-ls volume and directory browser using the same R3 session path
 - explicit AFP version selection: auto, 1.1, 2.0, 2.1, 2.2
+- ASP/DDP auto negotiation capped at highest advertised AFP version <= 2.2
 EOF
 
 # Production candidate must not accidentally contain the diagnostic overlays.
@@ -71,6 +78,7 @@ done
 
 strings "$OUT/gt-afp-pull" | grep '0.9.5-ddp-rfork-r3' >/dev/null
 strings "$OUT/gt-afp-ls" | grep '0.9.5-ddp-rfork-r3' >/dev/null
+strings "$OUT/afpsld" | grep 'GLOBALTALK ASP AUTO AFP CAP 2.2' >/dev/null
 
 if [ -f "$ROOT/tests/test_rfork_r2_model.py" ]; then
     python3 "$ROOT/tests/test_rfork_r2_model.py"
@@ -89,4 +97,5 @@ echo "Version marker: 0.9.5-ddp-rfork-r3"
 echo "Metadata batch: 16384 bytes"
 echo "ASP response ceiling: 4624 bytes"
 echo "AFP version selector: auto, 1.1, 2.0, 2.1, 2.2"
+echo "ASP/DDP auto AFP ceiling: 2.2"
 echo "R3 contains no R2B/R2C/R2D/R2E diagnostic overlays."
