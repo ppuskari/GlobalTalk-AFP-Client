@@ -55,9 +55,10 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
-# Old libatalk 2.2.4 can wedge after ATP retry exhaustion. Reuse the private
-# ATP-R1 archive from the previous hardware-test package; never modify the
-# installed /usr/local/lib/libatalk.a.
+# Keep the private historical libatalk archive available for NBP and the
+# remaining AppleTalk helpers.  A native ATP object, when requested below,
+# defines the public ATP entry points first so the archive ATP objects are not
+# pulled by the static linker.
 if [ ! -f "$ATPR1" ]; then
     if [ ! -f "$ROOT/libatalk-atp-r1/build-atalk-r1.sh" ]; then
         echo "ERROR: ATP-R1 helper package missing." >&2
@@ -201,31 +202,44 @@ echo "CC  legacy/legacy_meta_main.c"
     -include "$ROOT/legacy/legacy_compat.h" \
     -c "$ROOT/legacy/legacy_meta_main.c" -o "$LEGACY_META_OBJ"
 
+NATIVE_ATP_OBJ=""
+if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
+    test -f "$RFORK_NATIVE_ATP_SOURCE" || {
+        echo "ERROR: native ATP source not found: $RFORK_NATIVE_ATP_SOURCE" >&2
+        exit 1
+    }
+    NATIVE_ATP_OBJ="$OBJ/native_atp.o"
+    echo "CC  $RFORK_NATIVE_ATP_SOURCE"
+    "$CC" $CFLAGS $INCLUDES \
+        -include "$ROOT/legacy/legacy_compat.h" \
+        -c "$RFORK_NATIVE_ATP_SOURCE" -o "$NATIVE_ATP_OBJ"
+fi
+
 LIBS="$ATPR1 -lpthread -ldl"
 
 echo "LD  $OUT/afpsld"
 "$CC" -o "$OUT/afpsld" \
-    $CORE_OBJECTS $DAEMON_OBJECTS $LEGACY_COMPAT_OBJ \
+    $NATIVE_ATP_OBJ $CORE_OBJECTS $DAEMON_OBJECTS $LEGACY_COMPAT_OBJ \
     $LIBS
 
 echo "LD  $OUT/gt-afp-pull"
 "$CC" -o "$OUT/gt-afp-pull" \
-    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_MAIN_OBJ \
+    $NATIVE_ATP_OBJ $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_MAIN_OBJ \
     $LIBS
 
 echo "LD  $OUT/gt-afp-ls"
 "$CC" -o "$OUT/gt-afp-ls" \
-    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_LS_OBJ \
+    $NATIVE_ATP_OBJ $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_LS_OBJ \
     $LIBS
 
 echo "LD  $OUT/gt-afp-push"
 "$CC" -o "$OUT/gt-afp-push" \
-    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_PUSH_OBJ \
+    $NATIVE_ATP_OBJ $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_PUSH_OBJ \
     $LIBS
 
 echo "LD  $OUT/gt-afp-meta"
 "$CC" -o "$OUT/gt-afp-meta" \
-    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_META_OBJ \
+    $NATIVE_ATP_OBJ $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_META_OBJ \
     $LIBS
 
 echo
@@ -238,6 +252,11 @@ echo "  $OUT/gt-afp-meta"
 echo
 echo "Version marker: $VERSION"
 echo "Private libatalk: $ATPR1"
+if [ -n "$NATIVE_ATP_OBJ" ]; then
+    echo "ATP transaction engine: native override ($RFORK_NATIVE_ATP_SOURCE)"
+else
+    echo "ATP transaction engine: private libatalk ATP-R1"
+fi
 echo
 echo "GlobalTalk pull example:"
 echo "  $OUT/gt-afp-pull -r -V -M netatalk \\" 
