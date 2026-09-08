@@ -7,11 +7,6 @@ BIN="$ROOT/build-native-atp-r1"
 
 if [ "$#" -ne 3 ]; then
     echo "Usage: sh scripts/probe-native-metadata-r1.sh LOCAL_FILE AFP_VOLUME_URL REMOTE_PATH" >&2
-    echo "Example:" >&2
-    echo "  sh scripts/probe-native-metadata-r1.sh \\\" >&2
-    echo "    '/tmp/TalkCrawler 1.3' \\\" >&2
-    echo "    \"afp+ddp://pi:password@server@zone/Volume\" \\\" >&2
-    echo "    '/Test/TalkCrawler 1.3'" >&2
     exit 2
 fi
 
