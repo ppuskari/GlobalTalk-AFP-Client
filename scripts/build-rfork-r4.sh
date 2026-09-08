@@ -32,6 +32,9 @@ done
 
 # Preserve every hardware-proven R3 correction.
 python3 "$ROOT/tools/apply_ddp_rooted_url.py" "$CLIENT"
+if [ -f "$ROOT/tools/apply_ddp_credentials.py" ]; then
+    python3 "$ROOT/tools/apply_ddp_credentials.py" "$CLIENT"
+fi
 python3 "$ROOT/tools/apply_rfork_r3_forkstate.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r3_batch.py" "$CLIENT"
 python3 "$ROOT/tools/apply_afp_at_version_cap.py" "$CLIENT"
