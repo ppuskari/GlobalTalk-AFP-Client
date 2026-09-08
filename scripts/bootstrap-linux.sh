@@ -54,6 +54,10 @@ PY
 # a DSI TCP descriptor, so make those guards transport-aware.
 python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
 
+# Stream each remote ResourceFork through one persistent fork handle instead
+# of a fresh getattr/open/read/close sequence for every 4 KiB metadata chunk.
+python3 "$ROOT/tools/apply_pull_perf.py" "$CLIENT"
+
 # Netatalk's public <atalk/asp.h> includes <atalk/afp.h>, whose AFP enum/type
 # names collide with Netatalk Client's own afp_protocol.h.  Our transport only
 # needs ASP wire constants, so place a local wire-only shim first in the
