@@ -2,16 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Netatalk Client 0.9.5 assumes a successful FPCreateDir reply always
-# contains four bytes after the DSI header.  Some classic AFP-over-ASP
-# servers perform the create successfully but return only the AFP result.
-# Accept both forms.  When a 32-bit directory ID is present, decode it.
-#
-# R4C promotion note: temporarily record the exact FPCreateDir reply shape
-# in /tmp/gt-afp-r4c-mkdir-diag.log while validating writes on hardware.
-# afpsld normally daemonizes and redirects stderr to /dev/null, so a file
-# diagnostic is required to survive the normal gt-afp-push startup path.
-# This diagnostic is scoped only to FPCreateDir and will be removed after
-# the wire form is confirmed.
+# contains four bytes after the DSI header. Some classic AFP-over-ASP
+# servers may return result-only success. Accept either form and decode
+# the returned directory ID when present.
 
 from __future__ import print_function
 
@@ -39,18 +32,6 @@ with io.open(PATH, "r", encoding="utf-8") as f:
 if MARKER in text:
     print("FPCreateDir reply compatibility already applied: {}".format(UP))
     raise SystemExit(0)
-
-include_old = '''#include <string.h>
-#include <stdlib.h>
-'''
-include_new = '''#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-'''
-
-if text.count(include_old) != 1:
-    die("expected proto_directory include guard once")
-text = text.replace(include_old, include_new, 1)
 
 old = '''int afp_createdir_reply(struct afp_server *server _U_,
                         char *buf, unsigned int size, void *other)
@@ -81,56 +62,16 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
 {
     /* GLOBALTALK FPCreateDir REPLY COMPAT
      *
-     * A successful FPCreateDir reply may be either:
-     *   - result only (classic servers seen over ASP), or
-     *   - result plus a 32-bit directory ID.
-     *
-     * The caller only requires success here, but preserve the returned DID
-     * when the server supplies it.  Do not reinterpret the payload as the
-     * bitmap/forkid layout used by FPOpenFork.
+     * A successful FPCreateDir reply may be result-only or may carry a
+     * 32-bit directory ID. Do not reinterpret it as an FPOpenFork reply.
      */
     struct dsi_header *header = (void *)buf;
     unsigned int *dir_p = (void *)other;
     uint32_t net_did;
-    uint32_t net_result;
-    int32_t host_result;
     unsigned int payload_size;
-    unsigned int i;
-    unsigned int dump_len;
-    FILE *diag;
-
-    diag = fopen("/tmp/gt-afp-r4c-mkdir-diag.log", "a");
 
     if (size < sizeof(*header)) {
-        if (diag) {
-            fprintf(diag,
-                    "R4C_MKDIR_DIAG size=%u dsi=%u SHORT_REPLY\\n",
-                    size, (unsigned int)sizeof(*header));
-            fclose(diag);
-        }
         return -1;
-    }
-
-    memcpy(&net_result, &header->return_code.error_code,
-           sizeof(net_result));
-    host_result = (int32_t)ntohl(net_result);
-    payload_size = size - sizeof(*header);
-    dump_len = payload_size < 8U ? payload_size : 8U;
-
-    if (diag) {
-        fprintf(diag,
-                "R4C_MKDIR_DIAG size=%u dsi=%u payload=%u result=%d bytes=",
-                size, (unsigned int)sizeof(*header), payload_size,
-                (int)host_result);
-        for (i = 0; i < dump_len; i++) {
-            fprintf(diag, "%02x",
-                    (unsigned int)(unsigned char)buf[sizeof(*header) + i]);
-        }
-        if (dump_len == 0) {
-            fprintf(diag, "-");
-        }
-        fprintf(diag, "\\n");
-        fclose(diag);
     }
 
     if (header->return_code.error_code) {
@@ -141,10 +82,10 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
         *dir_p = 0;
     }
 
+    payload_size = size - sizeof(*header);
     if (payload_size == 0) {
         return 0;
     }
-
     if (payload_size < sizeof(net_did)) {
         return -1;
     }
