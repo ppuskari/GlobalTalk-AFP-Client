@@ -53,8 +53,10 @@ def main():
 
     data_dir = os.path.join(root, "data")
     resource_dir = os.path.join(root, "resource-payloads")
+    target_dir = os.path.join(root, "resource-targets")
     os.makedirs(data_dir)
     os.makedirs(resource_dir)
+    os.makedirs(target_dir)
 
     records = []
 
@@ -72,9 +74,22 @@ def main():
         write_binary(path, value)
         records.append(("resource", size, os.path.relpath(path, root), sha256(value)))
 
+        # A zero-data-fork remote target receives this resource payload after
+        # the directory is uploaded.  Keeping the target file empty isolates
+        # the resource-fork boundary test from data-fork contents.
+        target_name = "rfork-{:05d}".format(size)
+        target_path = os.path.join(target_dir, target_name)
+        write_binary(target_path, b"")
+        records.append(("resource-target", 0,
+                        os.path.relpath(target_path, root), sha256(b"")))
+
     empty_path = os.path.join(root, "empty.bin")
     write_binary(empty_path, b"")
     records.append(("data", 0, "empty.bin", sha256(b"")))
+
+    finder_target = os.path.join(root, "finder-target")
+    write_binary(finder_target, b"")
+    records.append(("finder-target", 0, "finder-target", sha256(b"")))
 
     # Valid, deliberately simple 32-byte FinderInfo: type TEXT, creator ttxt,
     # all Finder flags/location/folder/extended fields zero.
@@ -94,6 +109,7 @@ def main():
         f.write("GlobalTalk AFP Client R4 promotion corpus\n")
         f.write("Boundary sizes: {}\n".format(", ".join(str(x) for x in SIZES)))
         f.write("FinderInfo: 32 bytes, type TEXT, creator ttxt\n")
+        f.write("resource-targets/* are zero-data files used for resource writes.\n")
         f.write("All payloads are deterministic; hashes are in manifest.tsv.\n")
 
     with io.open(os.path.join(root, ".gt-afp-promotion-corpus"), "w",
@@ -104,6 +120,7 @@ def main():
     print("  root: {}".format(root))
     print("  data boundary files: {}".format(len(SIZES)))
     print("  resource payloads:   {}".format(len(SIZES)))
+    print("  resource targets:    {}".format(len(SIZES)))
     print("  FinderInfo bytes:    32")
     print("  manifest:            {}".format(os.path.join(root, "manifest.tsv")))
 
