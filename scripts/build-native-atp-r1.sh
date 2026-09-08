@@ -54,6 +54,8 @@ grep 'GLOBALTALK FPCreateDir REPLY COMPAT' \
 # build-rfork-r2.sh layers the proven ASP Write/WriteContinue implementation.
 # RFORK_NATIVE_ATP_SOURCE then places our ATP API object before the static
 # libatalk archive, so all client ATP transactions resolve to the native engine.
+# The same build also applies the native ASP control patch so synchronous server
+# Attention requests are acknowledged while an AFP command is still in flight.
 RFORK_OUT="$OUT" \
 RFORK_VERSION="$VERSION" \
 RFORK_NATIVE_ATP_SOURCE="$NATIVE" \
@@ -71,6 +73,8 @@ Transport:
 - XO response retransmit cache
 - EOM, STS and TREL handling
 - ASP OpenSession/command layer retained
+- asynchronous ASP Tickle consumption retained
+- synchronous ASP Attention requests acknowledged while commands are pending
 - proven R2 WriteContinue path retained above native ATP API
 
 AFP/data path:
@@ -99,6 +103,11 @@ do
         exit 1
     }
 done
+
+strings "$OUT/afpsld" | grep 'ASP attention acknowledged' >/dev/null || {
+    echo "ERROR: native ASP Attention handler missing from afpsld" >&2
+    exit 1
+}
 
 nm "$OUT/afpsld" | grep ' T atp_sreq$' >/dev/null
 nm "$OUT/afpsld" | grep ' T atp_rresp$' >/dev/null
@@ -135,6 +144,7 @@ echo "  $OUT/gt-afp-meta"
 echo
 echo "Version marker: $VERSION"
 echo "ATP engine: native R1"
+echo "ASP Attention interleave handling: enabled"
 echo "R4 resource stream: retained"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
