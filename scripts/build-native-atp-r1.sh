@@ -5,7 +5,14 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CLIENT="$ROOT/work/netatalk-client"
 OUT="$ROOT/build-native-atp-r1"
 VERSION="0.9.5-ddp-native-atp-r1"
-NATIVE="$ROOT/native/gt_atp_compat.c"
+NATIVE_SRC="$ROOT/native/gt_atp_compat.c"
+NATIVE="/tmp/gt_atp_compat.jessie.$$"
+
+cleanup_native()
+{
+    rm -f "$NATIVE"
+}
+trap cleanup_native EXIT HUP INT TERM
 
 if [ ! -d "$CLIENT/.git" ]; then
     echo "Pinned Netatalk Client work tree not found." >&2
@@ -13,10 +20,18 @@ if [ ! -d "$CLIENT/.git" ]; then
     exit 1
 fi
 
-test -f "$NATIVE" || {
-    echo "ERROR: native ATP source missing: $NATIVE" >&2
+test -f "$NATIVE_SRC" || {
+    echo "ERROR: native ATP source missing: $NATIVE_SRC" >&2
     exit 1
 }
+
+# The A2SERVER/Jessie host has historical libatalk development headers. Build
+# from a temporary compatibility copy so the tracked native engine remains
+# portable across old and current libatalk header layouts.
+python3 "$ROOT/tools/prepare_native_atp_jessie.py" \
+    "$NATIVE_SRC" "$NATIVE"
+
+grep 'GT_ATP_RESP_MAX 8' "$NATIVE" >/dev/null
 
 # Reconstruct every R3/R4/R4C-touched generated source from pinned 0.9.5.
 for path in \
@@ -76,6 +91,7 @@ Transport:
 - asynchronous ASP Tickle consumption retained
 - synchronous ASP Attention requests acknowledged while commands are pending
 - proven R2 WriteContinue path retained above native ATP API
+- Jessie libatalk header compatibility generated at build time
 
 AFP/data path:
 - R3 rooted URL and credential parsing retained
@@ -145,6 +161,7 @@ echo
 echo "Version marker: $VERSION"
 echo "ATP engine: native R1"
 echo "ASP Attention interleave handling: enabled"
+echo "Jessie libatalk header compatibility: enabled"
 echo "R4 resource stream: retained"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
