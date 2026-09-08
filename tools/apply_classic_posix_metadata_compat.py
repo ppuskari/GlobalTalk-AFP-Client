@@ -3,7 +3,7 @@
 #
 # Classic AFP/AppleTalk servers commonly do not implement the Unix privilege
 # and timestamp calls used only to mirror local POSIX metadata after the
-# Macintosh metadata has been copied.  The stateless daemon historically
+# Macintosh metadata has been copied. The stateless daemon historically
 # translated -ENOSYS/-ENOTSUP from those midlevel calls into a generic daemon
 # error, preventing cmdline_afp.c from treating them as optional capabilities.
 # Preserve the real NOTSUPPORTED result so FinderInfo/resource-fork transfers
@@ -68,9 +68,7 @@ chmod_new = '''        /* GLOBALTALK CLASSIC POSIX METADATA COMPAT R1 */
             result = AFP_SERVER_RESULT_ERROR;
         }
 
-        log_for_client((void *) c,
-                       (ret == -ENOSYS || ret == -ENOTSUP
-                        || ret == -EOPNOTSUPP) ? AFPFSD : AFPFSD,
+        log_for_client((void *) c, AFPFSD,
                        (ret == -ENOSYS || ret == -ENOTSUP
                         || ret == -EOPNOTSUPP) ? LOG_DEBUG : LOG_ERR,
                        "Failed to chmod file %s: %d (%s)", request->path, ret,
