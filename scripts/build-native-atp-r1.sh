@@ -67,6 +67,7 @@ python3 "$ROOT/tools/apply_rfork_r4_stream.py" "$CLIENT"
 python3 "$ROOT/tools/apply_gt_tool_presentation.py" "$CLIENT"
 python3 "$ROOT/tools/apply_metadata_none_sidecar_filter.py" "$CLIENT"
 python3 "$ROOT/tools/apply_classic_posix_metadata_compat.py" "$CLIENT"
+python3 "$ROOT/tools/apply_classic_xattr_gate.py" "$CLIENT"
 
 grep 'GLOBALTALK DDP CREDENTIALS' "$CLIENT/lib/afp_url.c" >/dev/null
 grep 'GLOBALTALK FPCreateDir REPLY COMPAT' \
@@ -76,6 +77,8 @@ grep 'GLOBALTALK R3 32K STATELESS METADATA IPC FRAME' \
 grep 'GLOBALTALK METADATA NONE SIDECAR FILTER R1' \
     "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 grep 'GLOBALTALK CLASSIC POSIX METADATA COMPAT R1' \
+    "$CLIENT/daemon/commands.c" >/dev/null
+grep 'GLOBALTALK CLASSIC AFP XATTR GATE R1' \
     "$CLIENT/daemon/commands.c" >/dev/null
 
 # build-rfork-r2.sh layers the proven ASP Write/WriteContinue implementation.
@@ -114,6 +117,7 @@ AFP/data path:
 - clean FPCreateDir reply compatibility retained
 - data-only recursive uploads suppress AppleDouble/._ implementation sidecars
 - classic servers may omit POSIX chmod/utime support without failing Mac metadata
+- AFP 2.x sessions reject AFP3 generic xattrs locally without disturbing FinderInfo/resource forks
 
 Tools:
 - gt-afp-ls
@@ -180,6 +184,7 @@ echo "Jessie libatalk header compatibility: enabled"
 echo "R3 metadata IPC frame: 32768 bytes"
 echo "Metadata-none sidecar suppression: enabled"
 echo "Classic POSIX metadata compatibility: enabled"
+echo "Classic AFP xattr capability gate: enabled"
 echo "R4 resource stream: retained"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
