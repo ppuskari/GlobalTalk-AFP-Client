@@ -27,6 +27,11 @@ cp "$ROOT/overlay/lib/asp_transport.c" \
 # those checks transport-aware before compiling afpsld.
 python3 "$ROOT/tools/apply_daemon_asp_compat.py" "$CLIENT"
 
+# Keep one remote ResourceFork handle open across all 4 KiB reads.  This is
+# especially important over classic ASP/DDP where each extra AFP round trip is
+# visible on the wire.
+python3 "$ROOT/tools/apply_pull_perf.py" "$CLIENT"
+
 CC=${CC:-cc}
 
 rm -rf "$OUT"
