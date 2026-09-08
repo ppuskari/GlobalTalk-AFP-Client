@@ -1,55 +1,158 @@
-# Phase 1 status
+# GlobalTalk AFP Client status
 
-## Implemented in this starter
+## Hardware-proven AFP-over-DDP read path
 
-- `afp+ddp://OBJECT@ZONE/...` URL parser
-- NBP lookup for `OBJECT:AFPServer@ZONE`
-- local ATP socket allocation
-- ASP GetStatus
-- ASP OpenSession
-- ASP Command framing with SID and sequence number
-- up to eight-packet ATP response reassembly
-- AFP result-code extraction
-- synthetic DSI reply envelope for reuse of Netatalk Client 0.9.5 parsers
-- guest/UAM flow through the existing Netatalk Client login implementation
-- existing volume enumeration, directory enumeration, fork reads and
-  metadata transfer code retained
-- clean ASP CloseSession path
-- DSI/TCP remains the original code path for ordinary `afp://` URLs
+Hardware validation on September 6, 2026 proved the legacy AppleTalk
+DDP/ATP/ASP path against the AFP 2.1 server `Blackbird` in zone `BaroNet`.
 
-## Deliberately deferred
+The R2F correctness build successfully retrieved PageSpinner using:
 
-- ASP Write / WriteContinue for large client-to-server writes
-- asynchronous ASP Attention handling
-- idle-session workstation-listener/tickle service
-- AFP-over-DDP FUSE mounting
-- authenticated non-guest UAM validation against classic servers
+`afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac/The Software!!/PageSpinner 3.0.2/PageSpinner`
 
-The archive crawler/puller is the priority. Those deferred pieces are not
-required for a continuously active recursive guest download.
+Observed final result:
 
-## Validation performed here
+- client exit code: `0`
+- data fork: `0` bytes, as expected for this application
+- remote resource fork length: `2668283` bytes
+- Netatalk AppleDouble sidecar: `2669024` bytes
+- AppleDouble magic: `0x00051607`
+- AppleDouble version: `0x00020000`
+- resource entry: ID `2`, offset `741`, length `2668283`
 
-- protocol framing cross-checked against Netatalk 4.5.1 ASP/ATP source
-- Netatalk Client 0.9.5 request/reply seam cross-checked against its tagged
-  source
-- patcher Python syntax checked
-- generated repository structure and scripts checked locally
-- phase-1 source statically checked for balanced C delimiters and expected
-  transport constants
+The sidecar size is exact: `741 + 2668283 = 2669024`.
 
-## Validation that requires the Netatalk VM / GlobalTalk
+## Correctness fixes now proven
 
-This environment has no `AF_APPLETALK` interface or route into GlobalTalk,
-so the following are intentionally marked **hardware/network pending**:
+- `afp+ddp://OBJECT@ZONE/VOLUME/path` discovery and rooted path traversal
+- NBP lookup and ASP session establishment
+- guest AFP login and volume/path traversal
+- up to eight ATP response packets per ASP command
+- AFP 2.x 32-bit resource-fork length discovery
+- resource-vs-data fork selection through `FPOpenFork`
+- preservation of `fp->resource` across the AFP 2.x pre-open parameter query
+- short successful `kFPNoErr` reads continue; only explicit `kFPEOFErr` ends a fork
+- FinderInfo retrieval and Netatalk AppleDouble construction
+- large resource-fork retrieval far beyond the 4624-byte ASP response ceiling
+- private libatalk ATP retry-exhaustion shim without modifying system libatalk
 
-1. NBP BRRQ traverses jrouter and resolves the chosen AFPServer.
-2. ASP GetStatus decodes on a real remote classic server.
-3. OpenSession produces a valid server session socket and SID.
-4. `No User Authent` guest FPLogin succeeds.
-5. FPGetSrvrParms returns the remote volume list.
-6. Recursive data-fork transfer is byte-clean.
-7. ResourceFork and FinderInfo round-trip through `-M netatalk`.
-8. Long transfers remain alive across classic ASP tickle intervals.
+## R3 integration candidate
 
-The first run should use `-v debug` so the exact failure boundary is obvious.
+Branch: `integration/rfork-r3-20260906`
+
+Build: `scripts/build-rfork-r3.sh`
+
+R3 folds the hardware-proven R2F corrections into production-named patchers
+and removes the R2B/R2C/R2D/R2E diagnostic overlays from the build path.
+It raises the stateless metadata batch from 4096 to 16384 bytes while leaving
+the ASP wire response ceiling at 4624 bytes.
+
+The 16384-byte batch is deliberately tied to the pinned Netatalk Client 0.9.5
+`MAX_CLIENT_RESPONSE` value. The 0.9.5 stateless client separately reserves a
+4096-byte log buffer plus framing slack, so R3 does not rely on the larger IPC
+framing used by newer Netatalk Client revisions.
+
+The purpose is to reduce repeated path-based resource-fork open/query/close
+cycles. For the 2668283-byte PageSpinner resource fork, the metadata layer
+needs 652 requests at 4096 bytes but only 163 requests at 16384 bytes. Each
+full R3 batch is still serviced internally by ordinary ASP transactions,
+requiring four reads for a 16 KiB batch.
+
+## R2F performance baseline
+
+The PageSpinner R2F transfer showed visible 4096-byte growth steps and
+receive traffic that was bursty rather than sustained. The complete resource
+fork took roughly 18 minutes, corresponding to about 20 kbit/s effective
+resource payload throughput, while instantaneous AppleTalk receive bursts
+were observed from idle up to roughly 72 kbit/s.
+
+## R3 hardware correctness and performance result
+
+The 16 KiB R3 build compiled successfully on Debian Jessie and completed the
+same PageSpinner transfer on September 6, 2026.
+
+Measured from the benchmark start time to the completed transfer log mtime:
+
+- elapsed time: `434` seconds (`7m14s`)
+- effective resource rate: `6.00 KiB/s`
+- effective resource rate: `49.18 kbit/s`
+- final data fork: `0` bytes
+- final AppleDouble sidecar: `2669024` bytes
+- AppleDouble resource entry: ID `2`, offset `741`, length `2668283`
+
+The R3 AppleDouble result exactly matches the R2F correctness baseline. The
+large-resource-fork correctness and performance gate is therefore complete.
+This is approximately a 2.5x end-to-end throughput improvement over R2F while
+keeping the proven 4624-byte ASP transaction ceiling unchanged.
+
+The observed receive graph also showed denser, higher bursts with less idle
+time between them, consistent with the reduction from 652 to 163 path-based
+resource-fork requests.
+
+The first R3 benchmark wrapper invocation completed the AFP transfer but its
+post-processing exited on Jessie because the script was launched through
+`/bin/sh` and used Bash-only `PIPESTATUS`. The wrapper has since been fixed to
+re-exec itself under Bash when invoked with `sh`; this wrapper defect did not
+change the AFP transfer binary or the measured transfer itself.
+
+## R3 mixed recursive-tree regression
+
+The R3 read path also completed a recursive pull of:
+
+`afp+ddp://Blackbird@BaroNet/Blackbird Public/Pimp My Mac/The Software!!/MATM 1.5`
+
+Observed result:
+
+- client exit code: `0`
+- elapsed time: `122` seconds
+- total data-fork bytes reported by the client: `373530`
+- `MATM 1.5` data fork: `365240` bytes
+- `MATM 1.5 Readme` data fork: `8290` bytes
+- `Register` data fork: `0` bytes
+- `.AppleDouble/MATM 1.5`: `305305` bytes
+- `.AppleDouble/MATM 1.5 Readme`: `121593` bytes
+- `.AppleDouble/Register`: `94842` bytes
+- `.AppleDouble/.Parent`: `741` bytes
+
+This proves recursive traversal over a mixed classic-Mac tree containing two
+nonzero data forks, one zero-length data fork, and AppleDouble metadata for all
+three files. The recursive mixed data/resource-fork regression gate is
+therefore complete. Exact source-vs-destination data-fork byte identity remains
+a separate validation item until the remote source bytes are independently
+hashed or otherwise compared.
+
+## R3 ASP automatic AFP-version compatibility
+
+Hardware validation against `Babylon 5` in zone `BabCom` exposed a classic
+mixed-era server behavior: generic automatic version selection failed, while
+explicit AFP 1.1, 2.0, 2.1, and 2.2 logins all succeeded over ASP/DDP.
+
+R3 now caps automatic AFP selection for ASP/DDP sessions at the highest
+advertised version at or below AFP 2.2. Explicit `-A` selections remain exact,
+and non-ASP/TCP behavior is unchanged.
+
+Hardware validation after the fix:
+
+- `gt-afp-ls 'afp+ddp://Babylon 5@BabCom'`: PASS
+- volumes enumerated: `Green Sector (ReadOnly)`, `Zocalo (Public)`
+- `gt-afp-ls 'afp+ddp://Blackbird@BaroNet'`: PASS
+- volume enumerated: `Blackbird Public`
+
+This closes the ASP automatic AFP-version negotiation compatibility gate and
+proves that the transport-aware cap fixes Babylon 5 without regressing
+Blackbird.
+
+## Write path
+
+ASP `Write` / `WriteContinue` transport support is implemented in the R2/R3
+transport layer, including server `ASPFUNC_WRTCONT` handling and multi-packet
+ATP responses. Hardware write/upload validation remains pending and is the
+next major protocol gate after R3 read/performance regression testing.
+
+## Remaining validation before promotion
+
+1. Verify ordinary data-fork byte identity against the remote source.
+2. Pull small and boundary-size resource forks.
+3. Verify FinderInfo behavior through a local Netatalk round trip.
+4. Hardware-test AFP writes, including payloads crossing 578 and 4624 bytes.
+5. After those gates pass, promote the integration branch into the normal
+   project build/mainline and retire test-only R2 diagnostic entrypoints.
