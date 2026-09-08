@@ -55,8 +55,18 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
+# Native ATP builds also make ASP command waiting bidirectional: server-side
+# Attention requests are acknowledged while the original command transaction
+# is pending. This is required for mutating commands on servers that synchronously
+# wait for the workstation's Attention ACK before sending the AFP command reply.
+if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
+    python3 "$ROOT/tools/apply_native_asp_control.py" "$CLIENT"
+    grep 'GLOBALTALK NATIVE ASP CONTROL R1' \
+        "$CLIENT/lib/asp_transport.c" >/dev/null
+fi
+
 # Keep the private historical libatalk archive available for NBP and the
-# remaining AppleTalk helpers.  A native ATP object, when requested below,
+# remaining AppleTalk helpers. A native ATP object, when requested below,
 # defines the public ATP entry points first so the archive ATP objects are not
 # pulled by the static linker.
 if [ ! -f "$ATPR1" ]; then
@@ -254,6 +264,7 @@ echo "Version marker: $VERSION"
 echo "Private libatalk: $ATPR1"
 if [ -n "$NATIVE_ATP_OBJ" ]; then
     echo "ATP transaction engine: native override ($RFORK_NATIVE_ATP_SOURCE)"
+    echo "ASP interleaved controls: enabled"
 else
     echo "ATP transaction engine: private libatalk ATP-R1"
 fi
