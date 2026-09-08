@@ -4,7 +4,7 @@
  *
  * This implements the libatalk ATP API subset used by the AFP-over-ASP
  * client, but keeps one explicit outgoing transaction and an explicit queue
- * for interleaved incoming requests.  Linux still supplies DDP through
+ * for interleaved incoming requests. Linux still supplies DDP through
  * AF_APPLETALK; only ATP transaction state is replaced here.
  */
 
@@ -163,6 +163,23 @@ static void gt_clear_responses(struct gt_atp_handle *g)
     for (i = 0; i < ATP_MAXRESP; i++) {
         memset(&g->responses[i], 0, sizeof(g->responses[i]));
     }
+}
+
+static void gt_abort_pending(struct gt_atp_handle *g)
+{
+    if (!g) {
+        return;
+    }
+
+    gt_clear_responses(g);
+    g->pending = 0;
+    g->pending_bitmap = 0;
+    g->pending_respcount = 0;
+    g->release_sent = 0;
+    g->request_len = 0;
+    g->pub.atph_rbitmap = 0;
+    g->pub.atph_rrespcount = 0;
+    g->pub.atph_reqtries = 0;
 }
 
 static int gt_send_raw(struct gt_atp_handle *g,
@@ -437,26 +454,29 @@ static int gt_receive_one(struct gt_atp_handle *g,
 static int gt_wait_readable(struct gt_atp_handle *g,
                             int timeout_sec)
 {
-    fd_set rfds;
-    struct timeval tv;
-    struct timeval *ptv = NULL;
     int rc;
 
-    FD_ZERO(&rfds);
-    FD_SET(g->pub.atph_socket, &rfds);
+    for (;;) {
+        fd_set rfds;
+        struct timeval tv;
+        struct timeval *ptv = NULL;
 
-    if (timeout_sec >= 0) {
-        tv.tv_sec = timeout_sec;
-        tv.tv_usec = 0;
-        ptv = &tv;
-    }
+        FD_ZERO(&rfds);
+        FD_SET(g->pub.atph_socket, &rfds);
 
-    do {
+        if (timeout_sec >= 0) {
+            tv.tv_sec = timeout_sec;
+            tv.tv_usec = 0;
+            ptv = &tv;
+        }
+
         rc = select(g->pub.atph_socket + 1,
                     &rfds, NULL, NULL, ptv);
-    } while (rc < 0 && errno == EINTR);
-
-    return rc;
+        if (rc < 0 && errno == EINTR) {
+            continue;
+        }
+        return rc;
+    }
 }
 
 ATP atp_open(uint8_t port, const struct at_addr *saddr)
@@ -577,7 +597,7 @@ int atp_sreq(ATP ah, struct atp_block *atpb,
 
     if (gt_send_raw(g, &g->pending_peer,
                     g->request, g->request_len) < 0) {
-        g->pending = 0;
+        gt_abort_pending(g);
         return -1;
     }
     g->tx_treq++;
@@ -625,11 +645,12 @@ int atp_rsel(ATP ah, struct sockaddr_at *faddr, int func)
             }
 
             if (g->retries_left == 0) {
+                uint16_t tid = g->pending_tid;
+                uint8_t bitmap = g->pending_bitmap;
                 g->timeouts++;
-                g->pub.atph_reqtries = 0;
+                gt_trace(g, "timeout", tid, bitmap);
+                gt_abort_pending(g);
                 errno = ETIMEDOUT;
-                gt_trace(g, "timeout", g->pending_tid,
-                         g->pending_bitmap);
                 return -1;
             }
 
@@ -714,12 +735,7 @@ int atp_rresp(ATP ah, struct atp_block *atpb)
     }
 
     atpb->atp_rresiovcnt = i;
-    gt_clear_responses(g);
-    g->pending = 0;
-    g->pending_bitmap = 0;
-    g->pub.atph_rbitmap = 0;
-    g->pub.atph_rrespcount = 0;
-    g->pub.atph_reqtries = 0;
+    gt_abort_pending(g);
     return 0;
 }
 
@@ -833,6 +849,7 @@ int atp_sresp(ATP ah, struct atp_block *atpb)
     struct atphdr hdr;
     unsigned char packet[ATP_BUFSIZ];
     int i;
+    int last_send = -1;
     size_t packet_len;
 
     if (!ah || !atpb || !atpb->atp_saddr ||
@@ -849,9 +866,23 @@ int atp_sresp(ATP ah, struct atp_block *atpb)
         return -1;
     }
 
+    for (i = 0; i < atpb->atp_sresiovcnt; i++) {
+        if (g->last_request_bitmap & (1U << i)) {
+            last_send = i;
+        }
+    }
+
+    if (last_send < 0) {
+        g->last_request_valid = 0;
+        return 0;
+    }
+
     memset(&g->xo, 0, sizeof(g->xo));
 
     for (i = 0; i < atpb->atp_sresiovcnt; i++) {
+        if (!(g->last_request_bitmap & (1U << i))) {
+            continue;
+        }
         if (atpb->atp_sresiov[i].iov_len > ATP_MAXDATA) {
             errno = EMSGSIZE;
             return -1;
@@ -861,7 +892,7 @@ int atp_sresp(ATP ah, struct atp_block *atpb)
         memset(&hdr, 0, sizeof(hdr));
         packet[0] = DDPTYPE_ATP;
         hdr.atphd_ctrlinfo = ATP_TRESP;
-        if (i == atpb->atp_sresiovcnt - 1) {
+        if (i == last_send) {
             hdr.atphd_ctrlinfo |= ATP_EOM;
         }
         hdr.atphd_bitmap = (uint8_t)i;
