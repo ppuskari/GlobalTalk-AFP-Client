@@ -1,4 +1,11 @@
 #!/bin/bash
+
+# Jessie /bin/sh is dash.  Re-exec under Bash so callers can use the same
+# "sh scripts/..." convention as the existing benchmark wrappers.
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /bin/bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -43,12 +50,12 @@ mkdir -p "$WORKBASE" "$PULL_DEST"
 exec > >(tee "$LOG") 2>&1
 
 echo "R4C controlled promotion round trip"
-echo "Build:       $BUILD"
-echo "Local corpus:$CORPUS"
-echo "Remote base: $BASE_URL"
-echo "Remote test: $REMOTE_URL"
-echo "Pull dest:   $PULL_DEST"
-echo "Log:         $LOG"
+echo "Build:        $BUILD"
+echo "Local corpus: $CORPUS"
+echo "Remote base:  $BASE_URL"
+echo "Remote test:  $REMOTE_URL"
+echo "Pull dest:    $PULL_DEST"
+echo "Log:          $LOG"
 echo
 
 python3 "$ROOT/tools/make_promotion_corpus.py" "$CORPUS"
@@ -82,9 +89,8 @@ echo "===== WRITE GATE: exact FinderInfo ====="
     "finder-target" \
     "$CORPUS/finderinfo.bin"
 
-# Read the FinderInfo directly once before the recursive pull.  This makes a
-# FinderInfo write failure immediately distinguishable from later tree-copy
-# or AppleDouble construction failures.
+# Read FinderInfo directly before the recursive pull.  This distinguishes a
+# metadata write problem from a later tree-copy/AppleDouble problem.
 DIRECT_FINDER="$WORKBASE/finder-direct-$STAMP.bin"
 "$BUILD/gt-afp-meta" \
     "$REMOTE_URL" \
