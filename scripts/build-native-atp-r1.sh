@@ -63,10 +63,13 @@ python3 "$ROOT/tools/apply_afp_at_version_cap.py" "$CLIENT"
 python3 "$ROOT/tools/apply_createdir_reply_compat.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r4_stream.py" "$CLIENT"
 python3 "$ROOT/tools/apply_gt_tool_presentation.py" "$CLIENT"
+python3 "$ROOT/tools/apply_classic_posix_metadata_compat.py" "$CLIENT"
 
 grep 'GLOBALTALK DDP CREDENTIALS' "$CLIENT/lib/afp_url.c" >/dev/null
 grep 'GLOBALTALK FPCreateDir REPLY COMPAT' \
     "$CLIENT/lib/proto_directory.c" >/dev/null
+grep 'GLOBALTALK CLASSIC POSIX METADATA COMPAT R1' \
+    "$CLIENT/daemon/commands.c" >/dev/null
 
 # build-rfork-r2.sh layers the proven ASP Write/WriteContinue implementation.
 # RFORK_NATIVE_ATP_SOURCE then places our ATP API object before the static
@@ -101,6 +104,7 @@ AFP/data path:
 - R3 16 KiB metadata batching retained
 - R4 stateful resource-fork stream retained
 - clean FPCreateDir reply compatibility retained
+- classic servers may omit POSIX chmod/utime support without failing Mac metadata
 
 Tools:
 - gt-afp-ls
@@ -164,6 +168,7 @@ echo "Version marker: $VERSION"
 echo "ATP engine: native R1"
 echo "ASP Attention interleave handling: enabled"
 echo "Jessie libatalk header compatibility: enabled"
+echo "Classic POSIX metadata compatibility: enabled"
 echo "R4 resource stream: retained"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
