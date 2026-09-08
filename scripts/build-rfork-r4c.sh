@@ -32,9 +32,15 @@ done
 
 # Preserve every hardware-proven R3 correction.
 python3 "$ROOT/tools/apply_ddp_rooted_url.py" "$CLIENT"
+python3 "$ROOT/tools/apply_ddp_credentials.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r3_forkstate.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r3_batch.py" "$CLIENT"
 python3 "$ROOT/tools/apply_afp_at_version_cap.py" "$CLIENT"
+
+# Guard the authenticated DDP authority parser.  The R4C build reconstructs
+# lib/afp_url.c from pinned 0.9.5 on every invocation, so this check prevents
+# accidentally shipping a guest-only parser in a later promotion rebuild.
+grep 'GLOBALTALK DDP CREDENTIALS' "$CLIENT/lib/afp_url.c" >/dev/null
 
 # Preserve the hardware-proven R4 stateful resource-fork stream unchanged.
 python3 "$ROOT/tools/apply_rfork_r4_stream.py" "$CLIENT"
@@ -55,6 +61,7 @@ GlobalTalk AFP Client R4 promotion candidate
 Protocol/data path:
 - identical R4 stateful resource-fork streaming architecture
 - R3 rooted-path, fork-state, ASP and auto-version corrections retained
+- authenticated afp+ddp://user:password@object@zone URLs supported
 - resource fork opened once, read statefully, closed once
 - resource stream block 101728 bytes = 22 * 4624-byte ASP response ceiling
 - ordinary metadata batch remains 16384 bytes
@@ -113,6 +120,7 @@ echo "  $OUT/gt-afp-meta"
 echo
 echo "Version marker: 0.9.5-ddp-rfork-r4c"
 echo "R4 resource stream: unchanged and hardware-proven"
+echo "Authenticated DDP URLs: enabled"
 echo "gt-afp-ls interactive-command hint: removed"
 echo "Write/FinderInfo/resource validation tools: enabled"
 echo "R4C contains no R2B/R2C/R2D/R2E diagnostic overlays."
