@@ -6,9 +6,12 @@
 # servers perform the create successfully but return only the AFP result.
 # Accept both forms.  When a 32-bit directory ID is present, decode it.
 #
-# R4C promotion note: temporarily print the exact FPCreateDir reply shape
-# to stderr while validating writes on hardware.  This diagnostic is scoped
-# only to FPCreateDir and will be removed after the wire form is confirmed.
+# R4C promotion note: temporarily record the exact FPCreateDir reply shape
+# in /tmp/gt-afp-r4c-mkdir-diag.log while validating writes on hardware.
+# afpsld normally daemonizes and redirects stderr to /dev/null, so a file
+# diagnostic is required to survive the normal gt-afp-push startup path.
+# This diagnostic is scoped only to FPCreateDir and will be removed after
+# the wire form is confirmed.
 
 from __future__ import print_function
 
@@ -36,6 +39,18 @@ with io.open(PATH, "r", encoding="utf-8") as f:
 if MARKER in text:
     print("FPCreateDir reply compatibility already applied: {}".format(UP))
     raise SystemExit(0)
+
+include_old = '''#include <string.h>
+#include <stdlib.h>
+'''
+include_new = '''#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+'''
+
+if text.count(include_old) != 1:
+    die("expected proto_directory include guard once")
+text = text.replace(include_old, include_new, 1)
 
 old = '''int afp_createdir_reply(struct afp_server *server _U_,
                         char *buf, unsigned int size, void *other)
@@ -82,11 +97,17 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
     unsigned int payload_size;
     unsigned int i;
     unsigned int dump_len;
+    FILE *diag;
+
+    diag = fopen("/tmp/gt-afp-r4c-mkdir-diag.log", "a");
 
     if (size < sizeof(*header)) {
-        fprintf(stderr,
-                "R4C_MKDIR_DIAG size=%u dsi=%u SHORT_REPLY\\n",
-                size, (unsigned int)sizeof(*header));
+        if (diag) {
+            fprintf(diag,
+                    "R4C_MKDIR_DIAG size=%u dsi=%u SHORT_REPLY\\n",
+                    size, (unsigned int)sizeof(*header));
+            fclose(diag);
+        }
         return -1;
     }
 
@@ -96,18 +117,21 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
     payload_size = size - sizeof(*header);
     dump_len = payload_size < 8U ? payload_size : 8U;
 
-    fprintf(stderr,
-            "R4C_MKDIR_DIAG size=%u dsi=%u payload=%u result=%d bytes=",
-            size, (unsigned int)sizeof(*header), payload_size,
-            (int)host_result);
-    for (i = 0; i < dump_len; i++) {
-        fprintf(stderr, "%02x",
-                (unsigned int)(unsigned char)buf[sizeof(*header) + i]);
+    if (diag) {
+        fprintf(diag,
+                "R4C_MKDIR_DIAG size=%u dsi=%u payload=%u result=%d bytes=",
+                size, (unsigned int)sizeof(*header), payload_size,
+                (int)host_result);
+        for (i = 0; i < dump_len; i++) {
+            fprintf(diag, "%02x",
+                    (unsigned int)(unsigned char)buf[sizeof(*header) + i]);
+        }
+        if (dump_len == 0) {
+            fprintf(diag, "-");
+        }
+        fprintf(diag, "\\n");
+        fclose(diag);
     }
-    if (dump_len == 0) {
-        fprintf(stderr, "-");
-    }
-    fprintf(stderr, "\\n");
 
     if (header->return_code.error_code) {
         return header->return_code.error_code;
