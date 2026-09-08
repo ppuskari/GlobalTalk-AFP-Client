@@ -5,6 +5,10 @@
 # contains four bytes after the DSI header.  Some classic AFP-over-ASP
 # servers perform the create successfully but return only the AFP result.
 # Accept both forms.  When a 32-bit directory ID is present, decode it.
+#
+# R4C promotion note: temporarily print the exact FPCreateDir reply shape
+# to stderr while validating writes on hardware.  This diagnostic is scoped
+# only to FPCreateDir and will be removed after the wire form is confirmed.
 
 from __future__ import print_function
 
@@ -73,11 +77,37 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
     struct dsi_header *header = (void *)buf;
     unsigned int *dir_p = (void *)other;
     uint32_t net_did;
+    uint32_t net_result;
+    int32_t host_result;
     unsigned int payload_size;
+    unsigned int i;
+    unsigned int dump_len;
 
     if (size < sizeof(*header)) {
+        fprintf(stderr,
+                "R4C_MKDIR_DIAG size=%u dsi=%u SHORT_REPLY\\n",
+                size, (unsigned int)sizeof(*header));
         return -1;
     }
+
+    memcpy(&net_result, &header->return_code.error_code,
+           sizeof(net_result));
+    host_result = (int32_t)ntohl(net_result);
+    payload_size = size - sizeof(*header);
+    dump_len = payload_size < 8U ? payload_size : 8U;
+
+    fprintf(stderr,
+            "R4C_MKDIR_DIAG size=%u dsi=%u payload=%u result=%d bytes=",
+            size, (unsigned int)sizeof(*header), payload_size,
+            (int)host_result);
+    for (i = 0; i < dump_len; i++) {
+        fprintf(stderr, "%02x",
+                (unsigned int)(unsigned char)buf[sizeof(*header) + i]);
+    }
+    if (dump_len == 0) {
+        fprintf(stderr, "-");
+    }
+    fprintf(stderr, "\\n");
 
     if (header->return_code.error_code) {
         return header->return_code.error_code;
@@ -87,7 +117,6 @@ new = '''int afp_createdir_reply(struct afp_server *server _U_,
         *dir_p = 0;
     }
 
-    payload_size = size - sizeof(*header);
     if (payload_size == 0) {
         return 0;
     }
