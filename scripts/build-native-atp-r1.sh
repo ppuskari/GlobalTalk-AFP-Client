@@ -6,7 +6,9 @@ CLIENT="$ROOT/work/netatalk-client"
 OUT="$ROOT/build-native-atp-r1"
 VERSION="0.9.5-ddp-native-atp-r1"
 NATIVE_SRC="$ROOT/native/gt_atp_compat.c"
-NATIVE="/tmp/gt_atp_compat.jessie.$$"
+# Keep a .c suffix: GCC otherwise treats an extensionless temporary path as
+# linker input even when -c is present, so no native_atp.o is produced.
+NATIVE="/tmp/gt_atp_compat.jessie.$$.c"
 
 cleanup_native()
 {
