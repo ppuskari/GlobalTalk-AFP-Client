@@ -189,6 +189,18 @@ echo "CC  legacy/legacy_ls_main.c"
     -include "$ROOT/legacy/legacy_compat.h" \
     -c "$ROOT/legacy/legacy_ls_main.c" -o "$LEGACY_LS_OBJ"
 
+LEGACY_PUSH_OBJ="$OBJ/legacy_push_main.o"
+echo "CC  legacy/legacy_push_main.c"
+"$CC" $CFLAGS $INCLUDES \
+    -include "$ROOT/legacy/legacy_compat.h" \
+    -c "$ROOT/legacy/legacy_push_main.c" -o "$LEGACY_PUSH_OBJ"
+
+LEGACY_META_OBJ="$OBJ/legacy_meta_main.o"
+echo "CC  legacy/legacy_meta_main.c"
+"$CC" $CFLAGS $INCLUDES \
+    -include "$ROOT/legacy/legacy_compat.h" \
+    -c "$ROOT/legacy/legacy_meta_main.c" -o "$LEGACY_META_OBJ"
+
 LIBS="$ATPR1 -lpthread -ldl"
 
 echo "LD  $OUT/afpsld"
@@ -206,11 +218,23 @@ echo "LD  $OUT/gt-afp-ls"
     $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_LS_OBJ \
     $LIBS
 
+echo "LD  $OUT/gt-afp-push"
+"$CC" -o "$OUT/gt-afp-push" \
+    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_PUSH_OBJ \
+    $LIBS
+
+echo "LD  $OUT/gt-afp-meta"
+"$CC" -o "$OUT/gt-afp-meta" \
+    $CORE_OBJECTS $PULL_OBJECTS $LEGACY_COMPAT_OBJ $LEGACY_META_OBJ \
+    $LIBS
+
 echo
 echo "ASP resource-fork tools built:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-pull"
 echo "  $OUT/gt-afp-ls"
+echo "  $OUT/gt-afp-push"
+echo "  $OUT/gt-afp-meta"
 echo
 echo "Version marker: $VERSION"
 echo "Private libatalk: $ATPR1"
@@ -220,7 +244,15 @@ echo "  $OUT/gt-afp-pull -r -V -M netatalk \\"
 echo "    'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/path' \\" 
 echo "    /srv/netatalk/archive"
 echo
+echo "GlobalTalk push example:"
+echo "  $OUT/gt-afp-push -r -V -M netatalk /tmp/corpus \\" 
+echo "    'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/path'"
+echo
 echo "GlobalTalk volume/path browser examples:"
 echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet'"
 echo "  $OUT/gt-afp-ls -A 2.0 'afp+ddp://Babylon 5@BabCom'"
 echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet/Blackbird Public/path'"
+echo
+echo "Metadata validation example:"
+echo "  $OUT/gt-afp-meta 'afp+ddp://server@zone/VOLUME/path' \\" 
+echo "    finderinfo get 'File Name' finderinfo.bin"
