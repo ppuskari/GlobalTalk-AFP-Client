@@ -52,9 +52,14 @@ echo
 
 "$PUSH" -V -M none "$LOCAL" "$TARGET"
 
+# Do not let the verification inherit the authenticated daemon session used by
+# the upload.  A fresh daemon forces an independent AFP login for pullback.
+pkill -u "$USER" -x afpsld 2>/dev/null || true
+sleep 1
+
 echo
 echo "============================================================"
-echo " AFP PULLBACK VERIFY"
+echo " FRESH-AUTH AFP PULLBACK VERIFY"
 echo "============================================================"
 echo
 
@@ -71,7 +76,7 @@ if ! cmp -s "$LOCAL" "$PULLDIR/$REMOTE_NAME"; then
 fi
 
 echo
-echo "PASS: authenticated AFP upload and pullback matched byte-for-byte."
+echo "PASS: authenticated upload and independent authenticated pullback matched byte-for-byte."
 
 if [ -n "$BACKING" ]; then
     BDIR=$(dirname "$BACKING")
