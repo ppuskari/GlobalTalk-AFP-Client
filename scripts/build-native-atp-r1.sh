@@ -4,7 +4,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CLIENT="$ROOT/work/netatalk-client"
 OUT="$ROOT/build-native-atp-r1"
-VERSION="0.9.5-ddp-native-atp-r1"
+VERSION="0.9.5-ddp-native-atp-r1-filedates-r1"
 NATIVE_SRC="$ROOT/native/gt_atp_compat.c"
 # Keep a .c suffix: GCC otherwise treats an extensionless temporary path as
 # linker input even when -c is present, so no native_atp.o is produced.
@@ -71,6 +71,7 @@ python3 "$ROOT/tools/apply_gt_tool_presentation.py" "$CLIENT"
 python3 "$ROOT/tools/apply_metadata_none_sidecar_filter.py" "$CLIENT"
 python3 "$ROOT/tools/apply_classic_posix_metadata_compat.py" "$CLIENT"
 python3 "$ROOT/tools/apply_classic_xattr_gate.py" "$CLIENT"
+python3 "$ROOT/tools/apply_netatalk_filedates_r1.py" "$CLIENT"
 
 grep 'GLOBALTALK DDP CREDENTIALS' "$CLIENT/lib/afp_url.c" >/dev/null
 grep 'GLOBALTALK FPCreateDir REPLY COMPAT' \
@@ -83,6 +84,8 @@ grep 'GLOBALTALK CLASSIC POSIX METADATA COMPAT R1' \
     "$CLIENT/daemon/commands.c" >/dev/null
 grep 'GLOBALTALK CLASSIC AFP XATTR GATE R1' \
     "$CLIENT/daemon/commands.c" >/dev/null
+grep 'GLOBALTALK NETATALK FILEDATES R1' \
+    "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 
 # build-rfork-r2.sh layers the proven ASP Write/WriteContinue implementation.
 # RFORK_NATIVE_ATP_SOURCE then places our ATP API object before the static
@@ -104,7 +107,7 @@ grep 'GLOBALTALK BATCH INTEGRITY R2' \
     "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 
 cat > "$OUT/BUILD-ID.txt" <<'EOF'
-GlobalTalk AFP Client native ATP R1 + session reliability R2
+GlobalTalk AFP Client native ATP R1 + session reliability R2 + File Dates R1
 
 Transport:
 - Linux AF_APPLETALK/DDP retained
@@ -133,6 +136,9 @@ AFP/data path:
 - data-only recursive uploads suppress AppleDouble/._ implementation sidecars
 - classic servers may omit POSIX chmod/utime support without failing Mac metadata
 - AFP 2.x sessions reject AFP3 generic xattrs locally without disturbing FinderInfo/resource forks
+- Netatalk AppleDouble File Dates Info preserves source AFP create/modify dates
+- Linux mtime restoration remains unchanged
+- AppleDouble backup/access date words remain untouched
 - batch pulls require exact statted data-fork size and successful remote close
 - recursive archive pulls stop on the first failed file/metadata operation
 - partial transfers are reported as failures, never as complete
@@ -186,6 +192,9 @@ fi
 if [ -f "$ROOT/tests/test_rfork_r4_model.py" ]; then
     python3 "$ROOT/tests/test_rfork_r4_model.py"
 fi
+if [ -f "$ROOT/tests/test_netatalk_filedates_model.py" ]; then
+    python3 "$ROOT/tests/test_netatalk_filedates_model.py"
+fi
 
 echo
 echo "Native ATP session-R2 tools ready:"
@@ -206,6 +215,7 @@ echo "R3 metadata IPC frame: 32768 bytes"
 echo "Metadata-none sidecar suppression: enabled"
 echo "Classic POSIX metadata compatibility: enabled"
 echo "Classic AFP xattr capability gate: enabled"
+echo "Netatalk File Dates create/modify preservation: enabled"
 echo "R4 resource stream: retained"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
