@@ -75,6 +75,7 @@ if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
       "$CLIENT/lib/asp_transport.c"
 
     python3 "$ROOT/tools/apply_batch_integrity_r2.py" "$CLIENT"
+    python3 "$ROOT/tools/apply_direct_download_cleanup.py" "$CLIENT"
 
     grep 'GLOBALTALK NATIVE ASP CONTROL R1' \
         "$CLIENT/lib/asp_transport.c" >/dev/null
@@ -85,6 +86,8 @@ if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
     test "$(grep -c 'GLOBALTALK WORKSTATION TICKLE SLS R2C' \
         "$CLIENT/lib/asp_transport.c")" -eq 2
     grep 'GLOBALTALK BATCH INTEGRITY R2' \
+        "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
+    grep 'GLOBALTALK DIRECT DOWNLOAD CLEANUP R2D' \
         "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 fi
 
