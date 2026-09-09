@@ -64,6 +64,7 @@ python3 "$ROOT/tools/apply_r3_metadata_ipc_frame.py" "$CLIENT"
 python3 "$ROOT/tools/apply_afp_at_version_cap.py" "$CLIENT"
 python3 "$ROOT/tools/apply_createdir_reply_compat.py" "$CLIENT"
 python3 "$ROOT/tools/apply_rfork_r4_stream.py" "$CLIENT"
+python3 "$ROOT/tools/apply_pull_transition_r1.py" "$CLIENT"
 python3 "$ROOT/tools/apply_gt_tool_presentation.py" "$CLIENT"
 python3 "$ROOT/tools/apply_metadata_none_sidecar_filter.py" "$CLIENT"
 python3 "$ROOT/tools/apply_classic_posix_metadata_compat.py" "$CLIENT"
@@ -74,6 +75,8 @@ grep 'GLOBALTALK FPCreateDir REPLY COMPAT' \
     "$CLIENT/lib/proto_directory.c" >/dev/null
 grep 'GLOBALTALK R3 32K STATELESS METADATA IPC FRAME' \
     "$CLIENT/daemon/daemon_client.h" >/dev/null
+grep 'GLOBALTALK PULL FORK TRANSITION R1' \
+    "$CLIENT/daemon/metadata.c" >/dev/null
 grep 'GLOBALTALK METADATA NONE SIDECAR FILTER R1' \
     "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 grep 'GLOBALTALK CLASSIC POSIX METADATA COMPAT R1' \
@@ -114,6 +117,7 @@ AFP/data path:
 - R3 16 KiB metadata batching retained
 - 32 KiB stateless daemon command frame carries 16 KiB metadata writes safely
 - R4 stateful resource-fork stream retained
+- post-data ResourceFork stream begins before FinderInfo fetch
 - clean FPCreateDir reply compatibility retained
 - data-only recursive uploads suppress AppleDouble/._ implementation sidecars
 - classic servers may omit POSIX chmod/utime support without failing Mac metadata
@@ -186,6 +190,7 @@ echo "Metadata-none sidecar suppression: enabled"
 echo "Classic POSIX metadata compatibility: enabled"
 echo "Classic AFP xattr capability gate: enabled"
 echo "R4 resource stream: retained"
+echo "Pull fork-transition ordering: ResourceFork before FinderInfo"
 echo "Authenticated DDP URLs: enabled"
 echo "Write/WriteContinue: enabled"
 echo "Temporary R4C diagnostics: absent"
