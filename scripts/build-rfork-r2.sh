@@ -55,18 +55,20 @@ sys.argv = [script, target]
 runpy.run_path(script, run_name="__main__")
 PY
 
-# Native ATP builds also make ASP command waiting bidirectional: server-side
-# Attention requests are acknowledged while the original command transaction
-# is pending.  R2 additionally fixes the workstation-originated ASP Tickle
-# wire format/endpoint and hardens batch archive integrity/failure reporting.
+# Native ATP builds make ASP command waiting bidirectional, restore classic ASP
+# workstation tickles for fd-less DDP sessions, and keep that tickle cadence
+# alive even while sustained AFP traffic prevents the generic loop from idling.
 if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
     python3 "$ROOT/tools/apply_native_asp_control.py" "$CLIENT"
     python3 "$ROOT/tools/apply_asp_session_tickle_r2.py" "$CLIENT"
+    python3 "$ROOT/tools/apply_busy_session_tickle_r2.py" "$CLIENT"
     python3 "$ROOT/tools/apply_batch_integrity_r2.py" "$CLIENT"
 
     grep 'GLOBALTALK NATIVE ASP CONTROL R1' \
         "$CLIENT/lib/asp_transport.c" >/dev/null
     grep 'GLOBALTALK ASP SESSION TICKLE R2' \
+        "$CLIENT/lib/asp_transport.c" >/dev/null
+    grep 'GLOBALTALK BUSY SESSION TICKLE R2B' \
         "$CLIENT/lib/asp_transport.c" >/dev/null
     grep 'GLOBALTALK BATCH INTEGRITY R2' \
         "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
@@ -273,6 +275,7 @@ if [ -n "$NATIVE_ATP_OBJ" ]; then
     echo "ATP transaction engine: native override ($RFORK_NATIVE_ATP_SOURCE)"
     echo "ASP interleaved controls: enabled"
     echo "ASP client tickle endpoint/wire fix: enabled"
+    echo "ASP busy-transfer tickle scheduler: enabled"
     echo "Batch archive integrity checks: enabled"
 else
     echo "ATP transaction engine: private libatalk ATP-R1"
