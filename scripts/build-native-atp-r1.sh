@@ -35,11 +35,14 @@ python3 "$ROOT/tools/prepare_native_atp_jessie.py" \
 
 grep 'GT_ATP_RESP_MAX 8' "$NATIVE" >/dev/null
 
-# Reconstruct every R3/R4/R4C-touched generated source from pinned 0.9.5.
+# Reconstruct every generated source touched by the native/R3/R4/session build
+# from pinned Netatalk Client 0.9.5.  lib/loop.c is included explicitly because
+# the R2 ASP keepalive fix broadens the DSI-centric tickle loop to fd-less ASP.
 for path in \
     lib/lowlevel.c \
     lib/afp_url.c \
     lib/server.c \
+    lib/loop.c \
     lib/midlevel.c \
     lib/proto_directory.c \
     include/midlevel.h \
@@ -84,15 +87,24 @@ grep 'GLOBALTALK CLASSIC AFP XATTR GATE R1' \
 # build-rfork-r2.sh layers the proven ASP Write/WriteContinue implementation.
 # RFORK_NATIVE_ATP_SOURCE then places our ATP API object before the static
 # libatalk archive, so all client ATP transactions resolve to the native engine.
-# The same build also applies the native ASP control patch so synchronous server
-# Attention requests are acknowledged while an AFP command is still in flight.
+# It also applies native ASP control handling, R2 session maintenance, and
+# fail-fast batch archive integrity checks.
 RFORK_OUT="$OUT" \
 RFORK_VERSION="$VERSION" \
 RFORK_NATIVE_ATP_SOURCE="$NATIVE" \
     sh "$ROOT/scripts/build-rfork-r2.sh"
 
+grep 'GLOBALTALK ASP SESSION TICKLE R2' \
+    "$CLIENT/lib/asp_transport.c" >/dev/null
+grep 'GLOBALTALK ASP IO SERIALIZATION R2' \
+    "$CLIENT/lib/asp_transport.c" >/dev/null
+grep 'GLOBALTALK ASP TICKLE LOOP R2' \
+    "$CLIENT/lib/loop.c" >/dev/null
+grep 'GLOBALTALK BATCH INTEGRITY R2' \
+    "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
+
 cat > "$OUT/BUILD-ID.txt" <<'EOF'
-GlobalTalk AFP Client native ATP R1
+GlobalTalk AFP Client native ATP R1 + session reliability R2
 
 Transport:
 - Linux AF_APPLETALK/DDP retained
@@ -105,6 +117,9 @@ Transport:
 - ASP OpenSession/command layer retained
 - asynchronous ASP Tickle consumption retained
 - synchronous ASP Attention requests acknowledged while commands are pending
+- client-originated ASP tickles enabled for fd-less DDP sessions
+- client tickles use the server session socket and libatalk wire form
+- command/write/tickle access serialized around the single native ATP transaction
 - proven R2 WriteContinue path retained above native ATP API
 - Jessie libatalk header compatibility generated at build time
 
@@ -118,6 +133,9 @@ AFP/data path:
 - data-only recursive uploads suppress AppleDouble/._ implementation sidecars
 - classic servers may omit POSIX chmod/utime support without failing Mac metadata
 - AFP 2.x sessions reject AFP3 generic xattrs locally without disturbing FinderInfo/resource forks
+- batch pulls require exact statted data-fork size and successful remote close
+- recursive archive pulls stop on the first failed file/metadata operation
+- partial transfers are reported as failures, never as complete
 
 Tools:
 - gt-afp-ls
@@ -170,7 +188,7 @@ if [ -f "$ROOT/tests/test_rfork_r4_model.py" ]; then
 fi
 
 echo
-echo "Native ATP R1 tools ready:"
+echo "Native ATP session-R2 tools ready:"
 echo "  $OUT/afpsld"
 echo "  $OUT/gt-afp-ls"
 echo "  $OUT/gt-afp-pull"
@@ -180,6 +198,9 @@ echo
 echo "Version marker: $VERSION"
 echo "ATP engine: native R1"
 echo "ASP Attention interleave handling: enabled"
+echo "ASP periodic session tickle: enabled"
+echo "ASP single-transaction serialization: enabled"
+echo "Batch archive integrity: enabled"
 echo "Jessie libatalk header compatibility: enabled"
 echo "R3 metadata IPC frame: 32768 bytes"
 echo "Metadata-none sidecar suppression: enabled"
