@@ -57,12 +57,19 @@ PY
 
 # Native ATP builds also make ASP command waiting bidirectional: server-side
 # Attention requests are acknowledged while the original command transaction
-# is pending. This is required for mutating commands on servers that synchronously
-# wait for the workstation's Attention ACK before sending the AFP command reply.
+# is pending.  R2 additionally fixes the workstation-originated ASP Tickle
+# wire format/endpoint and hardens batch archive integrity/failure reporting.
 if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
     python3 "$ROOT/tools/apply_native_asp_control.py" "$CLIENT"
+    python3 "$ROOT/tools/apply_asp_session_tickle_r2.py" "$CLIENT"
+    python3 "$ROOT/tools/apply_batch_integrity_r2.py" "$CLIENT"
+
     grep 'GLOBALTALK NATIVE ASP CONTROL R1' \
         "$CLIENT/lib/asp_transport.c" >/dev/null
+    grep 'GLOBALTALK ASP SESSION TICKLE R2' \
+        "$CLIENT/lib/asp_transport.c" >/dev/null
+    grep 'GLOBALTALK BATCH INTEGRITY R2' \
+        "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 fi
 
 # Keep the private historical libatalk archive available for NBP and the
@@ -265,24 +272,14 @@ echo "Private libatalk: $ATPR1"
 if [ -n "$NATIVE_ATP_OBJ" ]; then
     echo "ATP transaction engine: native override ($RFORK_NATIVE_ATP_SOURCE)"
     echo "ASP interleaved controls: enabled"
+    echo "ASP client tickle endpoint/wire fix: enabled"
+    echo "Batch archive integrity checks: enabled"
 else
     echo "ATP transaction engine: private libatalk ATP-R1"
 fi
 echo
-echo "GlobalTalk pull example:"
-echo "  $OUT/gt-afp-pull -r -V -M netatalk \\" 
-echo "    'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/path' \\" 
-echo "    /srv/netatalk/archive"
-echo
-echo "GlobalTalk push example:"
-echo "  $OUT/gt-afp-push -r -V -M netatalk /tmp/corpus \\" 
-echo "    'afp+ddp://BLIHNMNTE01@HuskyNet Global/VOLUME/path'"
-echo
-echo "GlobalTalk volume/path browser examples:"
-echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet'"
-echo "  $OUT/gt-afp-ls -A 2.0 'afp+ddp://Babylon 5@BabCom'"
-echo "  $OUT/gt-afp-ls 'afp+ddp://Blackbird@BaroNet/Blackbird Public/path'"
-echo
-echo "Metadata validation example:"
-echo "  $OUT/gt-afp-meta 'afp+ddp://server@zone/VOLUME/path' \\" 
-echo "    finderinfo get 'File Name' finderinfo.bin"
+echo "Use the tool help for URL syntax and examples:"
+echo "  $OUT/gt-afp-pull -h"
+echo "  $OUT/gt-afp-push -h"
+echo "  $OUT/gt-afp-ls -h"
+echo "  $OUT/gt-afp-meta -h"
