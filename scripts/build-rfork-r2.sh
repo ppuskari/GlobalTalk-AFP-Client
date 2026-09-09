@@ -62,6 +62,18 @@ if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
     python3 "$ROOT/tools/apply_native_asp_control.py" "$CLIENT"
     python3 "$ROOT/tools/apply_asp_session_tickle_r2.py" "$CLIENT"
     python3 "$ROOT/tools/apply_busy_session_tickle_r2.py" "$CLIENT"
+
+    # ASP session maintenance endpoints are asymmetric. The server sends its
+    # tickle to our WSS, while a workstation must send its tickle to the
+    # server Session Listening Socket (SLS). Keep normal AFP commands pointed
+    # at ctx->session; change only the two workstation-tickle send functions.
+    sed -i \
+      '/static int asp_send_client_tickle_unlocked(/,/static int asp_maybe_busy_tickle_unlocked(/ s/target = ctx->session;/target = ctx->listener; \/\* GLOBALTALK WORKSTATION TICKLE SLS R2C *\//'
+      "$CLIENT/lib/asp_transport.c"
+    sed -i \
+      '/int asp_transport_tickle(/,/void asp_transport_close_session(/ s/target = ctx->session;/target = ctx->listener; \/\* GLOBALTALK WORKSTATION TICKLE SLS R2C *\//'
+      "$CLIENT/lib/asp_transport.c"
+
     python3 "$ROOT/tools/apply_batch_integrity_r2.py" "$CLIENT"
 
     grep 'GLOBALTALK NATIVE ASP CONTROL R1' \
@@ -70,6 +82,8 @@ if [ -n "${RFORK_NATIVE_ATP_SOURCE:-}" ]; then
         "$CLIENT/lib/asp_transport.c" >/dev/null
     grep 'GLOBALTALK BUSY SESSION TICKLE R2B' \
         "$CLIENT/lib/asp_transport.c" >/dev/null
+    test "$(grep -c 'GLOBALTALK WORKSTATION TICKLE SLS R2C' \
+        "$CLIENT/lib/asp_transport.c")" -eq 2
     grep 'GLOBALTALK BATCH INTEGRITY R2' \
         "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 fi
@@ -274,7 +288,8 @@ echo "Private libatalk: $ATPR1"
 if [ -n "$NATIVE_ATP_OBJ" ]; then
     echo "ATP transaction engine: native override ($RFORK_NATIVE_ATP_SOURCE)"
     echo "ASP interleaved controls: enabled"
-    echo "ASP client tickle endpoint/wire fix: enabled"
+    echo "ASP client tickle wire format: enabled"
+    echo "ASP workstation tickle destination: server SLS"
     echo "ASP busy-transfer tickle scheduler: enabled"
     echo "Batch archive integrity checks: enabled"
 else
