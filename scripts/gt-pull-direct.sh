@@ -105,9 +105,9 @@ while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
         echo "Files landed directly in:"
         echo "  $DEST"
         exit 0
+    else
+        RC=$?
     fi
-
-    RC=$?
 
     echo >&2
     echo "Recursive AFP pull failed on attempt $ATTEMPT of $MAX_ATTEMPTS." >&2
