@@ -165,13 +165,22 @@ def main():
     else:
         print("Batch integrity R2 already applied: {}".format(path))
 
-    enable_r6_1 = os.environ.get("GT_AFP_ENABLE_R6_1") == "1"
-    enable_r6 = os.environ.get("GT_AFP_ENABLE_R6") == "1" or enable_r6_1
+    enable_r6_3 = os.environ.get("GT_AFP_ENABLE_R6_3") == "1"
+    enable_r6_2 = (os.environ.get("GT_AFP_ENABLE_R6_2") == "1"
+                   or enable_r6_3)
+    enable_r6_1 = (os.environ.get("GT_AFP_ENABLE_R6_1") == "1"
+                   or enable_r6_2)
+    enable_r6 = (os.environ.get("GT_AFP_ENABLE_R6") == "1"
+                 or enable_r6_1)
 
     if enable_r6:
         run_recovery_layer(root, "apply_persistent_recursive_recovery_r6.py")
     if enable_r6_1:
         run_recovery_layer(root, "apply_persistent_recursive_recovery_r6_1.py")
+    if enable_r6_2:
+        run_recovery_layer(root, "apply_persistent_recursive_recovery_r6_2.py")
+    if enable_r6_3:
+        run_recovery_layer(root, "apply_persistent_recursive_recovery_r6_3.py")
 
 
 if __name__ == "__main__":
