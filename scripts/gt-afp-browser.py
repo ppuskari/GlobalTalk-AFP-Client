@@ -247,7 +247,7 @@ def download_node(server, zone, volume, parts, env):
     print("Download base:")
     print("  remote: %s" % remote)
     print("  local:  %s" % dest)
-    print("  mode:   R6.1 persistent recursive AFP session")
+    print("  mode:   R6.2 persistent recursive AFP session")
     try:
         answer = input("Start recursive download? [y/N] ").strip().lower()
     except EOFError:
@@ -280,7 +280,7 @@ def browse_volume(server, zone, volume, compat):
         print("Path:   /%s" % "/".join(parts))
         print("Dates:  %s" % (
             "classic Finder compatibility" if compat else "AFP standard"))
-        print("Pull:   R6.1 persistent recursive session")
+        print("Pull:   R6.2 persistent recursive session")
         print()
 
         for idx, entry in enumerate(entries, 1):
@@ -352,7 +352,7 @@ def main():
     for path in (LS, PULL):
         if not os.path.exists(path):
             print("Required component not found: %s" % path, file=sys.stderr)
-            print("Build first with: sh scripts/build-filedates-r6-1.sh",
+            print("Build first with: sh scripts/build-filedates-r6-2.sh",
                   file=sys.stderr)
             return 1
 
