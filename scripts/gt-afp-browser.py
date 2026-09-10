@@ -23,6 +23,8 @@ LIST_RE = re.compile(
     r"([0-9]{4}-[0-9]{2}-[0-9]{2})\s+"
     r"([0-9]{2}:[0-9]{2})\s+(.*)$")
 
+PAGER_INPUT = b"\n" * 8192
+
 
 def pause(msg="Press Enter to continue..."):
     try:
@@ -39,6 +41,22 @@ def run_capture(argv, env=None):
     except subprocess.CalledProcessError as exc:
         data = exc.output or b""
         return exc.returncode, data.decode("utf-8", "replace")
+    except OSError as exc:
+        return 127, str(exc)
+
+
+def run_capture_paged(argv, env=None):
+    """Capture gt-afp-ls while automatically advancing its pager."""
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env)
+        out, unused = proc.communicate(PAGER_INPUT)
+        del unused
+        return proc.returncode, (out or b"").decode("utf-8", "replace")
     except OSError as exc:
         return 127, str(exc)
 
@@ -131,7 +149,7 @@ def reset_daemon(env):
 
 
 def list_volumes(server, zone, env):
-    rc, text = run_capture([LS, make_url(server, zone)], env=env)
+    rc, text = run_capture_paged([LS, make_url(server, zone)], env=env)
     if rc != 0:
         print(text)
         return []
@@ -155,7 +173,7 @@ def list_volumes(server, zone, env):
 
 def list_directory(server, zone, volume, parts, env):
     url = make_url(server, zone, volume, parts)
-    rc, text = run_capture([LS, url], env=env)
+    rc, text = run_capture_paged([LS, url], env=env)
     if rc != 0:
         print(text)
         return None
