@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import termios
 import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -33,11 +34,27 @@ MAX_LIST_ATTEMPTS = int(os.environ.get("GT_AFP_R5_LIST_ATTEMPTS", "2"))
 ROTATE_EVERY = int(os.environ.get("GT_AFP_R5_ROTATE_EVERY", "0"))
 
 # gt-afp-ls is historically interactive and pauses after a terminal-sized
-# page (for example, "49 entries shown; press any key for next page").
-# R5 is a batch consumer, so feed enough continuation keystrokes for even
-# very large classic-Mac directories.  Excess bytes simply disappear when
-# the child exits.  This does not alter AFP/ATP/ASP behavior.
+# page.  R5 is a batch consumer, so feed enough continuation keystrokes for
+# very large classic-Mac directories.
 PAGER_INPUT = b"\n" * 8192
+
+
+def tty_snapshot():
+    try:
+        if not sys.stdin.isatty():
+            return None
+        return termios.tcgetattr(sys.stdin.fileno())
+    except (termios.error, OSError):
+        return None
+
+
+def tty_restore(state):
+    if state is None:
+        return
+    try:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, state)
+    except (termios.error, OSError):
+        pass
 
 
 def run(argv, env=None):
@@ -49,6 +66,7 @@ def run(argv, env=None):
 
 
 def capture(argv, env=None):
+    saved_tty = tty_snapshot()
     try:
         proc = subprocess.Popen(
             argv,
@@ -62,6 +80,8 @@ def capture(argv, env=None):
         return proc.returncode, text
     except OSError as exc:
         return 127, str(exc)
+    finally:
+        tty_restore(saved_tty)
 
 
 def reset_session(reason):
@@ -181,7 +201,6 @@ def main():
     failures = []
     completed = [0]
 
-    # Stack entries are (remote path parts, local directory).
     stack = [(base_parts, dest_root)]
 
     print("R5 checkpointed recursive downloader")
@@ -231,7 +250,6 @@ def main():
                       (MAX_FILE_ATTEMPTS, file_url), file=sys.stderr)
                 failures.append((file_url, "file"))
 
-        # Push in reverse so the server listing order is retained.
         for entry in reversed(dirs):
             child_parts = remote_parts + [entry["name"]]
             child_local = os.path.join(local_dir, entry["name"])
