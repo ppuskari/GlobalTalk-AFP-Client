@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import termios
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -24,6 +25,26 @@ LIST_RE = re.compile(
     r"([0-9]{2}:[0-9]{2})\s+(.*)$")
 
 PAGER_INPUT = b"\n" * 8192
+
+
+def tty_snapshot():
+    """Save the interactive terminal mode before gt-afp-ls touches it."""
+    try:
+        if not sys.stdin.isatty():
+            return None
+        return termios.tcgetattr(sys.stdin.fileno())
+    except (termios.error, OSError):
+        return None
+
+
+def tty_restore(state):
+    """Restore terminal echo/canonical mode after an AFP helper exits."""
+    if state is None:
+        return
+    try:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, state)
+    except (termios.error, OSError):
+        pass
 
 
 def pause(msg="Press Enter to continue..."):
@@ -47,6 +68,7 @@ def run_capture(argv, env=None):
 
 def run_capture_paged(argv, env=None):
     """Capture gt-afp-ls while automatically advancing its pager."""
+    saved_tty = tty_snapshot()
     try:
         proc = subprocess.Popen(
             argv,
@@ -59,6 +81,10 @@ def run_capture_paged(argv, env=None):
         return proc.returncode, (out or b"").decode("utf-8", "replace")
     except OSError as exc:
         return 127, str(exc)
+    finally:
+        # The legacy lister's pager can manipulate the controlling tty even
+        # though its stdin is a pipe.  Always put the user's terminal back.
+        tty_restore(saved_tty)
 
 
 def choose(title, values, allow_manual=False):
