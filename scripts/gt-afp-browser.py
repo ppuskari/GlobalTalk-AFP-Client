@@ -18,6 +18,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LS = os.path.join(ROOT, "build-native-atp-r1", "gt-afp-ls")
 PULL = os.path.join(ROOT, "scripts", "gt-pull-r6.sh")
 RESET = os.path.join(ROOT, "scripts", "gt-afp-reset.sh")
+DEFAULT_DOWNLOAD_ROOT = "/mnt/AFPSERVER/128G2/AFPFILES2"
 
 LIST_RE = re.compile(
     r"^([d-][rwx-]{9})\s+([0-9]+)\s+"
@@ -28,7 +29,6 @@ PAGER_INPUT = b"\n" * 8192
 
 
 def tty_snapshot():
-    """Save the interactive terminal mode before gt-afp-ls touches it."""
     try:
         if not sys.stdin.isatty():
             return None
@@ -38,7 +38,6 @@ def tty_snapshot():
 
 
 def tty_restore(state):
-    """Restore terminal echo/canonical mode after an AFP helper exits."""
     if state is None:
         return
     try:
@@ -67,7 +66,6 @@ def run_capture(argv, env=None):
 
 
 def run_capture_paged(argv, env=None):
-    """Capture gt-afp-ls while automatically advancing its pager."""
     saved_tty = tty_snapshot()
     try:
         proc = subprocess.Popen(
@@ -222,13 +220,8 @@ def list_directory(server, zone, volume, parts, env):
 def default_download_root():
     configured = os.environ.get("GT_AFP_DOWNLOAD_ROOT")
     if configured:
-        configured = os.path.expanduser(configured)
-        if os.path.isdir(configured):
-            return configured
-    preferred = "/home/pi/A2FILES"
-    if os.path.isdir(preferred):
-        return preferred
-    return os.getcwd()
+        return os.path.expanduser(configured)
+    return DEFAULT_DOWNLOAD_ROOT
 
 
 def download_node(server, zone, volume, parts, env):
@@ -254,7 +247,7 @@ def download_node(server, zone, volume, parts, env):
     print("Download base:")
     print("  remote: %s" % remote)
     print("  local:  %s" % dest)
-    print("  mode:   R6 persistent recursive AFP session")
+    print("  mode:   R6.1 persistent recursive AFP session")
     try:
         answer = input("Start recursive download? [y/N] ").strip().lower()
     except EOFError:
@@ -262,9 +255,6 @@ def download_node(server, zone, volume, parts, env):
     if answer not in ("y", "yes"):
         return
 
-    # Invoke the helper through /bin/sh so the browser does not depend on the
-    # repository executable bit surviving a GitHub contents-API update.  This
-    # is especially important on the Jessie test host.
     rc = subprocess.call(["sh", PULL, remote, dest], env=env)
     print()
     print("Downloader exit status: %d" % rc)
@@ -290,7 +280,7 @@ def browse_volume(server, zone, volume, compat):
         print("Path:   /%s" % "/".join(parts))
         print("Dates:  %s" % (
             "classic Finder compatibility" if compat else "AFP standard"))
-        print("Pull:   R6 persistent recursive session")
+        print("Pull:   R6.1 persistent recursive session")
         print()
 
         for idx, entry in enumerate(entries, 1):
@@ -362,7 +352,7 @@ def main():
     for path in (LS, PULL):
         if not os.path.exists(path):
             print("Required component not found: %s" % path, file=sys.stderr)
-            print("Build first with: sh scripts/build-filedates-r6.sh",
+            print("Build first with: sh scripts/build-filedates-r6-1.sh",
                   file=sys.stderr)
             return 1
 
