@@ -15,7 +15,7 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LS = os.path.join(ROOT, "build-native-atp-r1", "gt-afp-ls")
-PULL = os.path.join(ROOT, "scripts", "gt-pull-direct.sh")
+PULL = os.path.join(ROOT, "scripts", "gt-pull-resilient.py")
 RESET = os.path.join(ROOT, "scripts", "gt-afp-reset.sh")
 
 LIST_RE = re.compile(
@@ -207,6 +207,7 @@ def download_node(server, zone, volume, parts, env):
     print("Download base:")
     print("  remote: %s" % remote)
     print("  local:  %s" % dest)
+    print("  mode:   R5 checkpointed per-file recovery")
     try:
         answer = input("Start recursive download? [y/N] ").strip().lower()
     except EOFError:
@@ -214,7 +215,7 @@ def download_node(server, zone, volume, parts, env):
     if answer not in ("y", "yes"):
         return
 
-    rc = subprocess.call([PULL, remote, dest], env=env)
+    rc = subprocess.call([sys.executable, PULL, remote, dest], env=env)
     print()
     print("Downloader exit status: %d" % rc)
     pause()
@@ -239,6 +240,7 @@ def browse_volume(server, zone, volume, compat):
         print("Path:   /%s" % "/".join(parts))
         print("Dates:  %s" % (
             "classic Finder compatibility" if compat else "AFP standard"))
+        print("Pull:   R5 checkpointed recovery")
         print()
 
         for idx, entry in enumerate(entries, 1):
@@ -310,7 +312,7 @@ def main():
     for path in (LS, PULL):
         if not os.path.exists(path):
             print("Required component not found: %s" % path, file=sys.stderr)
-            print("Build first with: sh scripts/build-filedates-r4.sh",
+            print("Build first with: sh scripts/build-filedates-r5.sh",
                   file=sys.stderr)
             return 1
 
