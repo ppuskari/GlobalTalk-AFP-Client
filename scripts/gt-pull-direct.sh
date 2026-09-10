@@ -12,7 +12,21 @@ DEST=$2
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PULL="$ROOT/build-native-atp-r1/gt-afp-pull"
+RESET="$ROOT/scripts/gt-afp-reset.sh"
 USER_NAME=${USER:-$(id -un)}
+MAX_ATTEMPTS=${GT_AFP_PULL_ATTEMPTS:-3}
+
+case "$MAX_ATTEMPTS" in
+    ''|*[!0-9]*)
+        echo "ERROR: GT_AFP_PULL_ATTEMPTS must be a positive integer." >&2
+        exit 2
+        ;;
+esac
+
+if [ "$MAX_ATTEMPTS" -lt 1 ]; then
+    echo "ERROR: GT_AFP_PULL_ATTEMPTS must be at least 1." >&2
+    exit 2
+fi
 
 if [ ! -x "$PULL" ]; then
     echo "ERROR: downloader not found:" >&2
@@ -69,14 +83,56 @@ if [ -n "$OTHER_PULLS" ]; then
     echo
 fi
 
-"$PULL" \
-    -r \
-    -V \
-    -M netatalk \
-    "$SOURCE" \
-    "$DEST"
+ATTEMPT=1
 
-echo
-echo "Download complete."
-echo "Files landed directly in:"
-echo "  $DEST"
+while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+    if [ "$ATTEMPT" -gt 1 ]; then
+        echo
+        echo "Retrying recursive download from the same remote base."
+        echo "Attempt $ATTEMPT of $MAX_ATTEMPTS."
+        echo "Existing completed files may be transferred again."
+        echo
+    fi
+
+    if "$PULL" \
+        -r \
+        -V \
+        -M netatalk \
+        "$SOURCE" \
+        "$DEST"; then
+        echo
+        echo "Download complete."
+        echo "Files landed directly in:"
+        echo "  $DEST"
+        exit 0
+    fi
+
+    RC=$?
+
+    echo >&2
+    echo "Recursive AFP pull failed on attempt $ATTEMPT of $MAX_ATTEMPTS." >&2
+    echo "The current afpsld session may no longer be usable." >&2
+
+    if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+        echo "Retry limit reached; leaving partial results in place." >&2
+        exit "$RC"
+    fi
+
+    if [ ! -x "$RESET" ]; then
+        echo "Cannot recover: reset helper not found:" >&2
+        echo "  $RESET" >&2
+        exit "$RC"
+    fi
+
+    echo "Restarting afpsld before retry..."
+    if ! "$RESET"; then
+        echo "AFP daemon reset was refused or failed." >&2
+        echo "No retry will be attempted because another AFP client may be active." >&2
+        exit "$RC"
+    fi
+
+    ATTEMPT=$((ATTEMPT + 1))
+    sleep 1
+done
+
+exit 1
