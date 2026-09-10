@@ -15,6 +15,7 @@ from __future__ import print_function
 
 import io
 import os
+import subprocess
 import sys
 
 MARKER = "GLOBALTALK BATCH INTEGRITY R2"
@@ -167,6 +168,11 @@ def main():
     print("  remote close failures propagated")
     print("  recursive download fails fast")
     print("  partial transfers never report complete")
+
+    if os.environ.get("GT_AFP_ENABLE_R6") == "1":
+        patcher = os.path.join(os.path.dirname(__file__),
+                               "apply_persistent_recursive_recovery_r6.py")
+        subprocess.check_call([sys.executable, patcher, root])
 
 
 if __name__ == "__main__":
