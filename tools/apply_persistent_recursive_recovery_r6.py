@@ -382,8 +382,6 @@ def main():
         return
     if "GLOBALTALK BATCH INTEGRITY R2" not in text:
         die("batch integrity R2 must be applied first")
-    if "GLOBALTALK DIRECT DOWNLOAD CLEANUP R2D" not in text:
-        die("direct download cleanup R2D must be applied first")
 
     text = patch_remote_readdir_all(text)
     text = patch_metadata(text)
