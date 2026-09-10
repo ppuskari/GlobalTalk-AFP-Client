@@ -2,13 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Harden Netatalk Client 0.9.5 batch transfers for archive use.
-#
-# Goals:
-# - never report a partial download as "Transfer complete"
-# - treat a failed remote close as a transfer failure
-# - verify the data-fork byte count against the initial remote stat
-# - stop recursive metadata work after a failed file transfer
-#
 # Debian Jessie / Python 3.4 compatible.
 
 from __future__ import print_function
@@ -104,7 +97,7 @@ def patch_retrieve(text):
 
     old_success = '''    if (verbose_mode) {\n        gettimeofday(&endtv, NULL);\n        printdiff(&starttv, &endtv, &total);\n    }\n\n    *amount_written = total;\n    ret = 0;\nout:\n\n    /* Do not close fd here, caller owns it */\n    if (file_opened && fileid) {\n        afp_sl_close(&vol_id, fileid);\n    }\n\n    return ret;\n'''
 
-    new_success = '''    if (verbose_mode) {\n        gettimeofday(&endtv, NULL);\n        printdiff(&starttv, &endtv, &total);\n    }\n\n    /* GLOBALTALK BATCH INTEGRITY R2\n     * A successful AFP read loop must reproduce the size we statted before\n     * opening the fork.  A false EOF or broken session must never be accepted\n     * as a complete archive file. */\n    if (stat && stat->st_size >= 0\n            && total != (unsigned long long)stat->st_size) {\n        printf("Incomplete remote file: expected %llu bytes, received %llu bytes\\n",\n               (unsigned long long)stat->st_size, total);\n        ret = -1;\n        goto out;\n    }\n\n    ret = 0;\nout:\n\n    *amount_written = total;\n\n    /* Do not close fd here, caller owns it.  Remote close is part of the\n     * transfer contract, however, so propagate a session/close failure. */\n    if (file_opened && fileid) {\n        int close_ret = afp_sl_close(&vol_id, fileid);\n        if (close_ret != 0) {\n            printf("Could not close remote file (result=%d)\\n", close_ret);\n            if (ret == 0) {\n                ret = -1;\n            }\n        }\n    }\n\n    return ret;\n'''
+    new_success = '''    if (verbose_mode) {\n        gettimeofday(&endtv, NULL);\n        printdiff(&starttv, &endtv, &total);\n    }\n\n    /* GLOBALTALK BATCH INTEGRITY R2 */\n    if (stat && stat->st_size >= 0\n            && total != (unsigned long long)stat->st_size) {\n        printf("Incomplete remote file: expected %llu bytes, received %llu bytes\\n",\n               (unsigned long long)stat->st_size, total);\n        ret = -1;\n        goto out;\n    }\n\n    ret = 0;\nout:\n\n    *amount_written = total;\n\n    if (file_opened && fileid) {\n        int close_ret = afp_sl_close(&vol_id, fileid);\n        if (close_ret != 0) {\n            printf("Could not close remote file (result=%d)\\n", close_ret);\n            if (ret == 0) {\n                ret = -1;\n            }\n        }\n    }\n\n    return ret;\n'''
 
     func = replace_once(func, old_success, new_success, "retrieve_file integrity")
     return text[:start] + func + text[end:]
@@ -142,6 +135,11 @@ def patch_batch_report(text):
     return text[:start] + func + text[end:]
 
 
+def run_recovery_layer(root, name):
+    patcher = os.path.join(os.path.dirname(__file__), name)
+    subprocess.check_call([sys.executable, patcher, root])
+
+
 def main():
     if len(sys.argv) != 2:
         die("usage: apply_batch_integrity_r2.py NETATALK_CLIENT_TREE")
@@ -154,25 +152,26 @@ def main():
 
     text = read_text(path)
 
-    if MARKER in text:
+    if MARKER not in text:
+        text = patch_retrieve(text)
+        text = patch_download_directory(text)
+        text = patch_batch_report(text)
+        write_text(path, text)
+        print("Applied batch integrity R2: {}".format(path))
+        print("  exact data-fork size required")
+        print("  remote close failures propagated")
+        print("  recursive download fails fast")
+        print("  partial transfers never report complete")
+    else:
         print("Batch integrity R2 already applied: {}".format(path))
-        return
 
-    text = patch_retrieve(text)
-    text = patch_download_directory(text)
-    text = patch_batch_report(text)
-    write_text(path, text)
+    enable_r6_1 = os.environ.get("GT_AFP_ENABLE_R6_1") == "1"
+    enable_r6 = os.environ.get("GT_AFP_ENABLE_R6") == "1" or enable_r6_1
 
-    print("Applied batch integrity R2: {}".format(path))
-    print("  exact data-fork size required")
-    print("  remote close failures propagated")
-    print("  recursive download fails fast")
-    print("  partial transfers never report complete")
-
-    if os.environ.get("GT_AFP_ENABLE_R6") == "1":
-        patcher = os.path.join(os.path.dirname(__file__),
-                               "apply_persistent_recursive_recovery_r6.py")
-        subprocess.check_call([sys.executable, patcher, root])
+    if enable_r6:
+        run_recovery_layer(root, "apply_persistent_recursive_recovery_r6.py")
+    if enable_r6_1:
+        run_recovery_layer(root, "apply_persistent_recursive_recovery_r6_1.py")
 
 
 if __name__ == "__main__":
