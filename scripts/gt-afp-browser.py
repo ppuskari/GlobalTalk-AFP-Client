@@ -262,7 +262,10 @@ def download_node(server, zone, volume, parts, env):
     if answer not in ("y", "yes"):
         return
 
-    rc = subprocess.call([PULL, remote, dest], env=env)
+    # Invoke the helper through /bin/sh so the browser does not depend on the
+    # repository executable bit surviving a GitHub contents-API update.  This
+    # is especially important on the Jessie test host.
+    rc = subprocess.call(["sh", PULL, remote, dest], env=env)
     print()
     print("Downloader exit status: %d" % rc)
     pause()
