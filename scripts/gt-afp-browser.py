@@ -16,7 +16,7 @@ import termios
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LS = os.path.join(ROOT, "build-native-atp-r1", "gt-afp-ls")
-PULL = os.path.join(ROOT, "scripts", "gt-pull-resilient.py")
+PULL = os.path.join(ROOT, "scripts", "gt-pull-r6.sh")
 RESET = os.path.join(ROOT, "scripts", "gt-afp-reset.sh")
 
 LIST_RE = re.compile(
@@ -82,8 +82,6 @@ def run_capture_paged(argv, env=None):
     except OSError as exc:
         return 127, str(exc)
     finally:
-        # The legacy lister's pager can manipulate the controlling tty even
-        # though its stdin is a pipe.  Always put the user's terminal back.
         tty_restore(saved_tty)
 
 
@@ -222,6 +220,11 @@ def list_directory(server, zone, volume, parts, env):
 
 
 def default_download_root():
+    configured = os.environ.get("GT_AFP_DOWNLOAD_ROOT")
+    if configured:
+        configured = os.path.expanduser(configured)
+        if os.path.isdir(configured):
+            return configured
     preferred = "/home/pi/A2FILES"
     if os.path.isdir(preferred):
         return preferred
@@ -251,7 +254,7 @@ def download_node(server, zone, volume, parts, env):
     print("Download base:")
     print("  remote: %s" % remote)
     print("  local:  %s" % dest)
-    print("  mode:   R5 checkpointed per-file recovery")
+    print("  mode:   R6 persistent recursive AFP session")
     try:
         answer = input("Start recursive download? [y/N] ").strip().lower()
     except EOFError:
@@ -259,7 +262,7 @@ def download_node(server, zone, volume, parts, env):
     if answer not in ("y", "yes"):
         return
 
-    rc = subprocess.call([sys.executable, PULL, remote, dest], env=env)
+    rc = subprocess.call([PULL, remote, dest], env=env)
     print()
     print("Downloader exit status: %d" % rc)
     pause()
@@ -284,7 +287,7 @@ def browse_volume(server, zone, volume, compat):
         print("Path:   /%s" % "/".join(parts))
         print("Dates:  %s" % (
             "classic Finder compatibility" if compat else "AFP standard"))
-        print("Pull:   R5 checkpointed recovery")
+        print("Pull:   R6 persistent recursive session")
         print()
 
         for idx, entry in enumerate(entries, 1):
@@ -356,7 +359,7 @@ def main():
     for path in (LS, PULL):
         if not os.path.exists(path):
             print("Required component not found: %s" % path, file=sys.stderr)
-            print("Build first with: sh scripts/build-filedates-r5.sh",
+            print("Build first with: sh scripts/build-filedates-r6.sh",
                   file=sys.stderr)
             return 1
 
