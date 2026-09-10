@@ -32,6 +32,13 @@ MAX_FILE_ATTEMPTS = int(os.environ.get("GT_AFP_R5_FILE_ATTEMPTS", "2"))
 MAX_LIST_ATTEMPTS = int(os.environ.get("GT_AFP_R5_LIST_ATTEMPTS", "2"))
 ROTATE_EVERY = int(os.environ.get("GT_AFP_R5_ROTATE_EVERY", "0"))
 
+# gt-afp-ls is historically interactive and pauses after a terminal-sized
+# page (for example, "49 entries shown; press any key for next page").
+# R5 is a batch consumer, so feed enough continuation keystrokes for even
+# very large classic-Mac directories.  Excess bytes simply disappear when
+# the child exits.  This does not alter AFP/ATP/ASP behavior.
+PAGER_INPUT = b"\n" * 8192
+
 
 def run(argv, env=None):
     try:
@@ -43,11 +50,16 @@ def run(argv, env=None):
 
 def capture(argv, env=None):
     try:
-        out = subprocess.check_output(argv, stderr=subprocess.STDOUT, env=env)
-        return 0, out.decode("utf-8", "replace")
-    except subprocess.CalledProcessError as exc:
-        data = exc.output or b""
-        return exc.returncode, data.decode("utf-8", "replace")
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env)
+        out, unused = proc.communicate(PAGER_INPUT)
+        del unused
+        text = (out or b"").decode("utf-8", "replace")
+        return proc.returncode, text
     except OSError as exc:
         return 127, str(exc)
 
@@ -177,6 +189,7 @@ def main():
     print("Local base:  %s" % dest_root)
     print("File attempts: %d" % MAX_FILE_ATTEMPTS)
     print("List attempts: %d" % MAX_LIST_ATTEMPTS)
+    print("Directory pagination: automatic")
     if ROTATE_EVERY:
         print("Proactive session rotation every %d completed files" % ROTATE_EVERY)
 
