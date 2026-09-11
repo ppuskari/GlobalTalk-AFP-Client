@@ -85,13 +85,29 @@ def function_span(text, signature):
     die("unterminated function: {}".format(signature))
 
 
+def tag_legacy_markerless_r63(text):
+    if ("R6.3: directory stat failed" not in text
+            or "R6.3: directory listing failed" not in text):
+        return None
+
+    start, end = function_span(text, "static int download_directory(")
+    func = text[start:end]
+    anchor = "    {\n        int dir_stat_ret;\n"
+    if anchor not in func:
+        return None
+
+    tagged = ("    /* " + MARKER + " */\n" + anchor)
+    func = func.replace(anchor, tagged, 1)
+    return text[:start] + func + text[end:]
+
+
 def patch_download_directory(text):
     start, end = function_span(text, "static int download_directory(")
     func = text[start:end]
 
     old_stat = '''    if (afp_sl_stat(&vol_id, server_path, NULL, &dir_stat) != 0) {\n        char display_remote[AFP_MAX_PATH * 4];\n        printf("Could not stat directory %s\\n",\n               display_text(server_path, display_remote, sizeof(display_remote)));\n        return -1;\n    }\n'''
 
-    new_stat = '''    {\n        int dir_stat_ret;\n        int dir_stat_attempt = 0;\n\nretry_directory_stat:\n        dir_stat_ret = afp_sl_stat(&vol_id, server_path, NULL, &dir_stat);\n        if (dir_stat_ret != 0) {\n            char display_remote[AFP_MAX_PATH * 4];\n            printf("R6.3: directory stat failed path=%s ret=%d attempt=%d\\n",\n                   display_text(server_path, display_remote,\n                                sizeof(display_remote)),\n                   dir_stat_ret, dir_stat_attempt + 1);\n\n            if (dir_stat_attempt == 0\n                    && is_recoverable_session_error(dir_stat_ret)) {\n                int recover_ret;\n                recover_ret = recover_session(1, 1);\n                printf("R6.3: directory stat recovery result path=%s ret=%d\\n",\n                       display_text(server_path, display_remote,\n                                    sizeof(display_remote)),\n                       recover_ret);\n                if (recover_ret == 0) {\n                    dir_stat_attempt = 1;\n                    goto retry_directory_stat;\n                }\n            }\n\n            return -1;\n        }\n    }\n'''
+    new_stat = '''    /* GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.3 */\n    {\n        int dir_stat_ret;\n        int dir_stat_attempt = 0;\n\nretry_directory_stat:\n        dir_stat_ret = afp_sl_stat(&vol_id, server_path, NULL, &dir_stat);\n        if (dir_stat_ret != 0) {\n            char display_remote[AFP_MAX_PATH * 4];\n            printf("R6.3: directory stat failed path=%s ret=%d attempt=%d\\n",\n                   display_text(server_path, display_remote,\n                                sizeof(display_remote)),\n                   dir_stat_ret, dir_stat_attempt + 1);\n\n            if (dir_stat_attempt == 0\n                    && is_recoverable_session_error(dir_stat_ret)) {\n                int recover_ret;\n                recover_ret = recover_session(1, 1);\n                printf("R6.3: directory stat recovery result path=%s ret=%d\\n",\n                       display_text(server_path, display_remote,\n                                    sizeof(display_remote)),\n                       recover_ret);\n                if (recover_ret == 0) {\n                    dir_stat_attempt = 1;\n                    goto retry_directory_stat;\n                }\n            }\n\n            return -1;\n        }\n    }\n'''
 
     count = func.count(old_stat)
     if count != 1:
@@ -125,6 +141,12 @@ def main():
         return
     if "GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.2" not in text:
         die("R6.2 must be applied first")
+
+    legacy = tag_legacy_markerless_r63(text)
+    if legacy is not None:
+        write_text(path, legacy)
+        print("Tagged markerless persistent recursive recovery R6.3: {}".format(path))
+        return
 
     text = patch_download_directory(text)
     write_text(path, text)
