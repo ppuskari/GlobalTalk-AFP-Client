@@ -4,15 +4,15 @@
 # GlobalTalk AFP Client R7C: Finder-style directory-ID reuse.
 #
 # R7B proved that avoiding redundant per-file path stat calls materially
-# improves both reliability and throughput on classic AFP servers.  A remaining
+# improves both reliability and throughput on classic AFP servers. A remaining
 # failure showed an object returned by FPEnumerate immediately failing a later
-# full-path open with ENOENT.  Netatalk Client 0.9.5 resolves that open by
+# full-path open with ENOENT. Netatalk Client 0.9.5 resolves that open by
 # re-walking the parent pathname through get_dirid(), despite FPEnumerate
 # already returning each child's ParentDirID.
 #
 # R7C seeds the existing DID cache from the FPEnumerate result for the directory
 # being walked, then keeps actively used cache entries alive with a sliding
-# timeout.  Subsequent opens therefore resolve the parent directory by DID and
+# timeout. Subsequent opens therefore resolve the parent directory by DID and
 # issue only the direct child-name AFP operation, which is much closer to
 # classic Finder behavior.
 #
@@ -115,7 +115,9 @@ def patch_did(did_text):
 
 /* GLOBALTALK FINDER DID CACHE R7C
  * Seed the current directory DID directly from an FPEnumerate result.
- * 'path' is already in AFP path encoding here, matching get_dirid() keys. */
+ * In Netatalk Client 0.9.5, parse_reply_block stores kFPParentDirIDBit in
+ * afp_file_info.did. 'path' is already in AFP path encoding here, matching
+ * get_dirid() cache keys. */
 int seed_did_cache_from_enumerate(struct afp_volume *volume,
                                   const char *path,
                                   struct afp_file_info *entries)
@@ -123,7 +125,7 @@ int seed_did_cache_from_enumerate(struct afp_volume *volume,
     char cache_path[AFP_MAX_PATH];
     size_t path_len;
 
-    if (!volume || !path || !entries || entries->parentdid == 0) {
+    if (!volume || !path || !entries || entries->did == 0) {
         return -1;
     }
 
@@ -138,7 +140,7 @@ int seed_did_cache_from_enumerate(struct afp_volume *volume,
 
     memset(cache_path, 0, sizeof(cache_path));
     memcpy(cache_path, path, path_len + 1U);
-    return add_did_cache_entry(volume, entries->parentdid, cache_path);
+    return add_did_cache_entry(volume, entries->did, cache_path);
 }
 '''
     did_text = did_text[:end] + helper + did_text[end:]
@@ -183,13 +185,22 @@ def main():
         die("R7B must be applied first")
 
     did_text = read_text(did_c)
-    if MARKER in did_text:
-        print("Finder DID cache R7C already applied: {}".format(did_c))
+    low_text = read_text(lowlevel)
+    header_text = read_text(did_h)
+
+    # A completed application must be present in both DID and enumerate paths.
+    # This matters because the normal native build reconstructs lowlevel.c.
+    if (MARKER in did_text and MARKER in low_text
+            and "seed_did_cache_from_enumerate" in header_text):
+        print("Finder DID cache R7C already applied: {}".format(root))
         return
 
+    if MARKER in did_text or MARKER in low_text:
+        die("partial R7C application detected; rebuild from a clean generated tree")
+
     did_text = patch_did(did_text)
-    header_text = patch_did_header(read_text(did_h))
-    low_text = patch_lowlevel(read_text(lowlevel))
+    header_text = patch_did_header(header_text)
+    low_text = patch_lowlevel(low_text)
 
     write_text(did_c, did_text)
     write_text(did_h, header_text)
