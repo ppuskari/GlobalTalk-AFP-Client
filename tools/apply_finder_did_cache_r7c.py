@@ -148,6 +148,11 @@ int seed_did_cache_from_enumerate(struct afp_volume *volume,
 
 
 def patch_did_header(h_text):
+    old = '''#define __DID_H_\n\n'''
+    new = '''#define __DID_H_\n\nstruct afp_file_info;\n\n'''
+    h_text = replace_once(h_text, old, new,
+                          "did.h afp_file_info forward declaration")
+
     old = '''int get_dirid(struct afp_volume * volume, const char * path,\n              char *basename, unsigned int *dirid);\n\n#endif\n'''
     new = '''int get_dirid(struct afp_volume * volume, const char * path,\n              char *basename, unsigned int *dirid);\nint seed_did_cache_from_enumerate(struct afp_volume *volume,\n                                  const char *path,\n                                  struct afp_file_info *entries);\n\n#endif\n'''
     return replace_once(h_text, old, new, "did.h R7C declaration")
@@ -188,8 +193,6 @@ def main():
     low_text = read_text(lowlevel)
     header_text = read_text(did_h)
 
-    # A completed application must be present in both DID and enumerate paths.
-    # This matters because the normal native build reconstructs lowlevel.c.
     if (MARKER in did_text and MARKER in low_text
             and "seed_did_cache_from_enumerate" in header_text):
         print("Finder DID cache R7C already applied: {}".format(root))
