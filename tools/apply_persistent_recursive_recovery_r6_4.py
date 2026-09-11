@@ -19,6 +19,7 @@ import os
 import sys
 
 MARKER = "GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.4"
+R63_MARKER = "GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.3"
 
 
 def die(msg):
@@ -86,6 +87,13 @@ def function_span(text, signature):
     die("unterminated function: {}".format(signature))
 
 
+def has_r63(text):
+    if R63_MARKER in text:
+        return True
+    return ("R6.3: directory stat failed" in text
+            and "R6.3: directory listing failed" in text)
+
+
 def patch_retrieve(text):
     start, end = function_span(text, "static int retrieve_file(")
     func = text[start:end]
@@ -129,7 +137,7 @@ def main():
     if MARKER in text:
         print("Persistent recursive recovery R6.4 already applied: {}".format(path))
         return
-    if "GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.3" not in text:
+    if not has_r63(text):
         die("R6.3 must be applied first")
 
     text = patch_retrieve(text)
