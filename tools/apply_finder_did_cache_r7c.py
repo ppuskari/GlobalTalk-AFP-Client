@@ -105,18 +105,11 @@ def function_span(text, signature):
 
 
 def patch_did(did_text):
-    # Keep an actively used directory ID alive.  The historical fixed 10-second
-    # expiry caused long directory walks to fall back into repeated pathname
-    # resolution even while the directory was still the active parent.
     old_hit = '''        if (strcmp(p->dirname, path) == 0) {\n            found_did = p->did;\n            volume->did_cache_stats.hits++;\n            goto out;\n        }\n'''
     new_hit = '''        if (strcmp(p->dirname, path) == 0) {\n            /* GLOBALTALK FINDER DID CACHE R7C */\n            found_did = p->did;\n            p->time = time;\n            volume->did_cache_stats.hits++;\n            goto out;\n        }\n'''
     did_text = replace_once(did_text, old_hit, new_hit,
                             "DID sliding cache hit")
 
-    # Export a tiny helper that seeds the current directory from FPEnumerate.
-    # Every returned child carries ParentDirID because ll_readdir requests that
-    # bitmap.  For a non-empty directory, the first child's parent ID is the
-    # exact DID Finder would continue using for child operations.
     start, end = function_span(did_text, "static int add_did_cache_entry(")
     helper = r'''
 
@@ -128,6 +121,7 @@ int seed_did_cache_from_enumerate(struct afp_volume *volume,
                                   struct afp_file_info *entries)
 {
     char cache_path[AFP_MAX_PATH];
+    size_t path_len;
 
     if (!volume || !path || !entries || entries->parentdid == 0) {
         return -1;
@@ -137,11 +131,13 @@ int seed_did_cache_from_enumerate(struct afp_volume *volume,
         return 0;
     }
 
-    memset(cache_path, 0, sizeof(cache_path));
-    if (strlcpy(cache_path, path, sizeof(cache_path)) >= sizeof(cache_path)) {
+    path_len = strlen(path);
+    if (path_len >= sizeof(cache_path)) {
         return -1;
     }
 
+    memset(cache_path, 0, sizeof(cache_path));
+    memcpy(cache_path, path, path_len + 1U);
     return add_did_cache_entry(volume, entries->parentdid, cache_path);
 }
 '''
