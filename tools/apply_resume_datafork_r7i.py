@@ -110,6 +110,7 @@ def patch_retrieve(text):
      * GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.1
      * GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.4
      * GLOBALTALK FINDER ENUM METADATA R7B
+     * GLOBALTALK ZERO DATAFORK SKIP R7E
      * GLOBALTALK RESUME DATAFORK R7I */
 
     *amount_written = 0;
@@ -134,6 +135,22 @@ def patch_retrieve(text):
     if (verbose_mode) {
         printf("R7B: reusing caller/enumeration metadata path=%s size=%llu\n",
                path, (unsigned long long)expected_stat.st_size);
+    }
+
+    /* GLOBALTALK ZERO DATAFORK SKIP R7E
+     * FPEnumerate/direct stat already established an exact empty data fork.
+     * Keep the proven R7E behavior unchanged: no remote data-fork open/read/
+     * close is issued. FinderInfo/resource-fork metadata remains handled by
+     * the unchanged metadata stage after retrieve_file() returns. */
+    if (stat->st_size == 0) {
+        if (verbose_mode) {
+            printf("R7E: empty data fork; skipping AFP open/read/close path=%s\n",
+                   path);
+            printf("    Transferred 0 bytes (empty data fork; no AFP data-fork I/O)\n");
+        }
+        *amount_written = 0;
+        ret = 0;
+        goto out;
     }
 
     gettimeofday(&starttv, NULL);
@@ -330,13 +347,14 @@ def main():
     text = patch_retrieve(text)
     write_text(path, text)
     print("Applied resumable data-fork recovery R7I: {}".format(path))
+    print("  R7E zero-byte data-fork skip retained exactly")
     print("  successfully written bytes survive reconnect")
     print("  recovered session rebuilds parent DID chain")
     print("  fresh stat must match original size and modification time")
     print("  local file is truncated/positioned to last verified byte")
     print("  recovered fork resumes at that exact AFP read offset")
     print("  up to 3 in-process recoveries are allowed per file")
-    print("  normal no-error data path and ATP/ASP transport unchanged")
+    print("  normal nonzero no-error data path and ATP/ASP transport unchanged")
 
 
 if __name__ == "__main__":
