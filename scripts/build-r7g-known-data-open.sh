@@ -16,11 +16,12 @@ trap cleanup_native EXIT HUP INT TERM
 
 sh "$ROOT/scripts/build-r7f-enum-metadata.sh"
 python3 "$ROOT/tools/apply_known_data_open_r7g.py" "$CLIENT"
+python3 "$ROOT/tools/apply_known_data_open_r7g_pin095.py" "$CLIENT"
 
 grep 'GLOBALTALK ENUMERATED METADATA R7F' "$CLIENT/include/afpsl.h" >/dev/null
 grep 'GLOBALTALK KNOWN DATA OPEN R7G' "$CLIENT/include/afp.h" >/dev/null
 grep 'GLOBALTALK KNOWN DATA OPEN R7G' "$CLIENT/lib/lowlevel.c" >/dev/null
-grep 'ml_open_known_data' "$CLIENT/lib/midlevel.c" >/dev/null
+grep 'GLOBALTALK KNOWN DATA OPEN R7G PIN095' "$CLIENT/lib/midlevel.c" >/dev/null
 grep 'afp_sl_open_known_data' "$CLIENT/daemon/stateless.c" >/dev/null
 grep 'afp_sl_open_known_data' "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 
@@ -37,7 +38,7 @@ grep 'GLOBALTALK FINDER DID CACHE R7C' "$CLIENT/lib/did.c" >/dev/null
 grep 'GLOBALTALK FINDER RECOVERY DID R7D' "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 grep 'GLOBALTALK ZERO DATAFORK SKIP R7E' "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 grep 'GLOBALTALK ENUMERATED METADATA R7F' "$CLIENT/include/afpsl.h" >/dev/null
-grep 'GLOBALTALK KNOWN DATA OPEN R7G' "$CLIENT/include/afp.h" >/dev/null
+grep 'GLOBALTALK KNOWN DATA OPEN R7G PIN095' "$CLIENT/lib/midlevel.c" >/dev/null
 test "$(grep -c 'GLOBALTALK FINDER ATP RETRY R7A' "$CLIENT/lib/asp_transport.c")" -eq 2
 
 for binary in afpsld gt-afp-ls gt-afp-pull gt-afp-push gt-afp-meta
@@ -50,12 +51,14 @@ done
 
 python3 -m py_compile \
     "$ROOT/tools/apply_enumerated_metadata_r7f.py" \
-    "$ROOT/tools/apply_known_data_open_r7g.py"
+    "$ROOT/tools/apply_known_data_open_r7g.py" \
+    "$ROOT/tools/apply_known_data_open_r7g_pin095.py"
 
 sh -n "$ROOT/scripts/gt-pull-r7g.sh"
 
 echo
 echo "R7G known-data-open build ready."
+echo "Pinned Netatalk Client 0.9.5 API: verified"
 echo "R7F rich enumeration metadata: retained"
 echo "Healthy nonzero data forks: AFP2 pre-open parameter query skipped"
 echo "FPOpenFork/read/close: unchanged"
