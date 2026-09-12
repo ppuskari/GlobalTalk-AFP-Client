@@ -11,6 +11,7 @@ SOURCE=$1
 DEST=$2
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PULL="$ROOT/build-native-atp-r1/gt-afp-pull"
+VERSION="0.9.5-ddp-native-atp-r7i-resume-datafork"
 
 if [ ! -x "$PULL" ]; then
     echo "ERROR: downloader not found:" >&2
@@ -20,12 +21,26 @@ if [ ! -x "$PULL" ]; then
     exit 1
 fi
 
+# R7I intentionally shares R7E's output directory. Refuse to launch unless
+# the actual executable contains both the R7I version and resume code.
+strings "$PULL" | grep -F "$VERSION" >/dev/null || {
+    echo "ERROR: downloader is not an R7I build; refusing stale R7E binary." >&2
+    echo "Rebuild with:" >&2
+    echo "  sh scripts/build-r7i-resume-datafork.sh" >&2
+    exit 1
+}
+strings "$PULL" | grep -F 'R7I: recovery requested' >/dev/null || {
+    echo "ERROR: downloader lacks R7I recovery code." >&2
+    exit 1
+}
+
 mkdir -p "$DEST"
 
 echo
 echo "R7I resumable persistent recursive AFP copy"
 echo "Remote base: $SOURCE"
 echo "Local base:  $DEST"
+echo "Binary:      R7I version/resume markers verified"
 echo "Base:        virgin R7E healthy path"
 echo "Traversal:   R7C ParentDirID/DID reuse"
 echo "Recovery:    R7D DID rebuild + R7I same-file offset resume"
