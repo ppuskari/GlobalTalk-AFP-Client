@@ -113,7 +113,12 @@ def deepen_metadata_recovery(text):
         return 0;
     }
 
-    /* GLOBALTALK DEEP RECOVERY R7J
+    /* GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.2
+     * Preserve the R6.2 layering marker because R7J intentionally replaces
+     * that function.  The final R7B-enabled compile must not reapply the old
+     * one-retry R6.2 implementation over this deeper recovery policy.
+     *
+     * GLOBALTALK DEEP RECOVERY R7J
      * Some classic AFP servers keep ASP/tickle service alive while an AFP
      * command path temporarily wedges.  A successful reconnect is therefore
      * not enough by itself: require the R7D parent-DID rebuild to succeed
@@ -239,6 +244,7 @@ def main():
     print("  metadata/session recovery budget: 6")
     print("  failed reconnects consume budget and retry")
     print("  failed DID-prime never proceeds directly to metadata")
+    print("  R6.2 layering marker retained so final build cannot overwrite R7J")
     print("  one-second settle delay exists only on recovery path")
     print("  healthy-path AFP operations and pacing unchanged")
     print("  ATP timer/retransmission budget unchanged")
