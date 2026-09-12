@@ -17,7 +17,7 @@ trap cleanup_native EXIT HUP INT TERM
 # Reconstruct the proven R7E tree from pinned Netatalk Client 0.9.5.
 sh "$ROOT/scripts/build-r7e-zero-datafork.sh"
 
-# Replace only the data-fork recovery path.  No healthy-path AFP operations,
+# Replace only the data-fork recovery path. No healthy-path AFP operations,
 # ATP timing, enumeration layout, metadata behavior, or resource-fork behavior
 # are changed by R7I.
 python3 "$ROOT/tools/apply_resume_datafork_r7i.py" "$CLIENT"
@@ -42,7 +42,7 @@ RFORK_VERSION="$VERSION" \
 RFORK_NATIVE_ATP_SOURCE="$NATIVE" \
     sh "$ROOT/scripts/build-rfork-r2.sh"
 
-# Final source must retain the full proven stack plus R7I only on recovery.
+# Final generated source must retain the full proven stack plus R7I.
 grep 'GLOBALTALK FINDER DID CACHE R7C' "$CLIENT/lib/did.c" >/dev/null
 grep 'GLOBALTALK FINDER RECOVERY DID R7D' \
     "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
@@ -61,6 +61,25 @@ do
     }
 done
 
+# R7I uses the same output directory as R7E. Do not allow a stale R7E
+# executable to masquerade as an R7I build if any compile/layer step regresses.
+strings "$OUT/gt-afp-pull" | grep -F "$VERSION" >/dev/null || {
+    echo "ERROR: final gt-afp-pull is not the R7I version." >&2
+    exit 1
+}
+strings "$OUT/gt-afp-pull" | grep -F 'R7I: recovery requested' >/dev/null || {
+    echo "ERROR: R7I recovery code missing from final gt-afp-pull." >&2
+    exit 1
+}
+strings "$OUT/gt-afp-pull" | grep -F 'R7I: resume validation passed' >/dev/null || {
+    echo "ERROR: R7I resume validation missing from final gt-afp-pull." >&2
+    exit 1
+}
+strings "$OUT/gt-afp-pull" | grep -F 'R7I: resuming current file' >/dev/null || {
+    echo "ERROR: R7I resume loop missing from final gt-afp-pull." >&2
+    exit 1
+}
+
 python3 -m py_compile \
     "$ROOT/tools/apply_resume_datafork_r7i.py"
 sh -n "$ROOT/scripts/gt-pull-r7i.sh"
@@ -78,6 +97,7 @@ echo "ATP timer/budget: unchanged"
 echo "ATP response ceiling: unchanged (8 x 578 = 4624 bytes)"
 echo "AFP logical read size: unchanged"
 echo "Metadata/resource-fork paths: unchanged"
+echo "Final gt-afp-pull binary: R7I markers verified"
 echo
 echo "Run:"
 echo "  ./scripts/gt-afp-reset.sh"
