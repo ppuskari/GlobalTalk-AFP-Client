@@ -3,17 +3,12 @@
 #
 # GlobalTalk AFP Client R7I: resumable data-fork recovery.
 #
-# Layered on the proven R7E tree.  Preserve successfully written bytes across
+# Layered on the proven R7E tree. Preserve successfully written bytes across
 # AFP session recovery, validate the remote object before continuing, then
 # reopen the fork and resume from the last verified offset.
-#
-# Normal no-error traffic is unchanged.  ATP/ASP transport, retry timing,
-# enumeration, metadata, resource forks, DID caching, and zero-fork behavior
-# are unchanged.
 # Debian Jessie / Python 3.4 compatible.
 
 from __future__ import print_function
-
 import io
 import os
 import sys
@@ -90,7 +85,6 @@ def function_span(text, signature):
 
 def patch_retrieve(text):
     start, end = function_span(text, "static int retrieve_file(")
-
     replacement = r'''static int retrieve_file(char * arg, int fd, struct stat *stat,
                          unsigned long long *amount_written)
 {
@@ -111,6 +105,13 @@ def patch_retrieve(text):
     int recoveries = 0;
     const int max_recoveries = 3;
 
+    /* Preserve marker semantics so the final R7B-enabled compile does not
+     * reapply older patchers over this replacement function.
+     * GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.1
+     * GLOBALTALK PERSISTENT RECURSIVE RECOVERY R6.4
+     * GLOBALTALK FINDER ENUM METADATA R7B
+     * GLOBALTALK RESUME DATAFORK R7I */
+
     *amount_written = 0;
 
     if (!vol_id) {
@@ -123,7 +124,6 @@ def patch_retrieve(text):
         goto out;
     }
 
-    /* GLOBALTALK RESUME DATAFORK R7I */
     if (!stat) {
         op_ret = -EINVAL;
         printf("R7I: missing caller metadata path=%s ret=%d\n", path, op_ret);
@@ -151,9 +151,6 @@ retry_file:
                path, offset, recoveries, max_recoveries);
     }
 
-    /* A recovered close failure can occur after every expected byte has been
-     * committed locally.  The reconnect invalidated the old fork ref, so there
-     * is nothing left to read; proceed directly to final size validation. */
     if ((unsigned long long)expected_stat.st_size == total) {
         goto complete_file;
     }
@@ -174,26 +171,22 @@ retry_file:
         received = 0;
         op_ret = afp_sl_read(&vol_id, fileid, 0, offset, size,
                              &received, &eof, buf);
-
         if (op_ret != 0) {
             printf("R6.1: read failed path=%s ret=%d offset=%llu request=%u received=%u eof=%u\n",
                    path, op_ret, offset, size, received, eof);
             goto recover_or_out;
         }
-
         if (received == 0) {
             printf("R6.1: zero-byte read path=%s offset=%llu request=%u eof=%u\n",
                    path, offset, size, eof);
             break;
         }
-
         if (write_all_fd(fd, buf, received) < 0) {
             printf("R6.1: local write failed path=%s offset=%llu bytes=%u\n",
                    path, offset, received);
             ret = -1;
             goto out;
         }
-
         total += received;
         offset += received;
     }
@@ -223,7 +216,6 @@ complete_file:
         gettimeofday(&endtv, NULL);
         printdiff(&starttv, &endtv, &total);
     }
-
     *amount_written = total;
     ret = 0;
     goto out;
@@ -249,7 +241,6 @@ recover_or_out:
         printf("R7I: recovery requested path=%s cause=%s ret=%d offset=%llu recovery=%d/%d\n",
                path, recover_cause, op_ret, total,
                recoveries + 1, max_recoveries);
-
         recover_ret = recover_session(1, 1);
         printf("R7I: recovery result path=%s ret=%d\n", path, recover_ret);
         if (recover_ret != 0) {
@@ -270,7 +261,6 @@ recover_or_out:
                    path, op_ret);
             goto unrecovered;
         }
-
         if (fresh_stat.st_size != expected_stat.st_size
                 || fresh_stat.st_mtime != expected_stat.st_mtime) {
             printf("R7I: resume validation mismatch path=%s "
@@ -319,20 +309,16 @@ out:
     }
     return ret;
 }'''
-
     return text[:start] + replacement + text[end:]
 
 
 def main():
     if len(sys.argv) != 2:
         die("usage: apply_resume_datafork_r7i.py NETATALK_CLIENT_TREE")
-
     root = os.path.abspath(sys.argv[1])
     path = os.path.join(root, "cmdline", "cmdline_afp.c")
-
     if not os.path.isfile(path):
         die("missing {}".format(path))
-
     text = read_text(path)
     if MARKER in text:
         print("Resume data-fork R7I already applied: {}".format(path))
@@ -341,10 +327,8 @@ def main():
         die("R7E must be applied first")
     if R7D_MARKER not in text:
         die("R7D must be applied first")
-
     text = patch_retrieve(text)
     write_text(path, text)
-
     print("Applied resumable data-fork recovery R7I: {}".format(path))
     print("  successfully written bytes survive reconnect")
     print("  recovered session rebuilds parent DID chain")
