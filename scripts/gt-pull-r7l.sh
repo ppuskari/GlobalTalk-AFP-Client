@@ -85,6 +85,14 @@ export GT_AFP_R7K_INTERFILE_MS="$INTERFILE_MS"
 STAMP=$(date +%Y%m%d-%H%M%S)
 LOG="$LOGDIR/r7l-${MODE}-${ATP_SENDS}send-${INTERFILE_MS}ms-${STAMP}.log"
 
+if command -v stdbuf >/dev/null 2>&1; then
+    USE_STDBUF=1
+    BUFFER_DESC="line-buffered with stdbuf"
+else
+    USE_STDBUF=0
+    BUFFER_DESC="native stdio buffering (stdbuf unavailable)"
+fi
+
 {
     echo "============================================================"
     echo "GlobalTalk AFP Client R7L recovery-loop trial"
@@ -95,6 +103,7 @@ LOG="$LOGDIR/r7l-${MODE}-${ATP_SENDS}send-${INTERFILE_MS}ms-${STAMP}.log"
     echo "Inter-file:  $INTERFILE_MS ms after successful metadata"
     echo "Recovery:    R7L whole-stage bounded retry, 6 cycles"
     echo "Identity:    R7I.2 nonzero CNID + exact fork size"
+    echo "Buffering:   $BUFFER_DESC"
     echo "Remote base: $SOURCE"
     echo "Local base:  $DEST"
     echo "Log file:    $LOG"
@@ -106,7 +115,13 @@ LOG="$LOGDIR/r7l-${MODE}-${ATP_SENDS}send-${INTERFILE_MS}ms-${STAMP}.log"
 # shell. PIPESTATUS therefore preserves gt-afp-pull's real exit status while
 # tee captures stdout+stderr. Exiting this script simply returns to PuTTY.
 set +e
-"$PULL" -r -V -M netatalk "$SOURCE" "$DEST" 2>&1 | tee -a "$LOG"
+if [ "$USE_STDBUF" -eq 1 ]; then
+    stdbuf -oL -eL "$PULL" -r -V -M netatalk "$SOURCE" "$DEST" \
+        2>&1 | tee -a "$LOG"
+else
+    "$PULL" -r -V -M netatalk "$SOURCE" "$DEST" \
+        2>&1 | tee -a "$LOG"
+fi
 RC=${PIPESTATUS[0]}
 set -e
 
