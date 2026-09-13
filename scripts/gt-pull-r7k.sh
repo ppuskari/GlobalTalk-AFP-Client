@@ -3,7 +3,7 @@ set -eu
 
 if [ "$#" -ne 3 ]; then
     echo "Usage:" >&2
-    echo "  $0 {control|patient|paced|combined} 'REMOTE_AFP_URL' LOCAL_DIRECTORY" >&2
+    echo "  $0 {control|patient|paced|combined|balanced|paced25|balanced25} 'REMOTE_AFP_URL' LOCAL_DIRECTORY" >&2
     exit 2
 fi
 
@@ -31,9 +31,27 @@ case "$MODE" in
         ATP_SENDS=10
         INTERFILE_MS=50
         ;;
+    balanced)
+        # R7K tuning round 2: preserve the successful 50 ms pacing while
+        # reducing the maximum inline ATP wait versus the 10-send combined
+        # trial.  Eight total sends = initial + seven retransmissions.
+        ATP_SENDS=8
+        INTERFILE_MS=50
+        ;;
+    paced25)
+        # Test whether half of the successful pacing interval is sufficient
+        # while retaining the proven R7A six-send ATP policy.
+        ATP_SENDS=6
+        INTERFILE_MS=25
+        ;;
+    balanced25)
+        # Middle-ground ATP patience plus reduced think time.
+        ATP_SENDS=8
+        INTERFILE_MS=25
+        ;;
     *)
         echo "ERROR: unknown R7K mode: $MODE" >&2
-        echo "Use control, patient, paced, or combined." >&2
+        echo "Use control, patient, paced, combined, balanced, paced25, or balanced25." >&2
         exit 2
         ;;
 esac
