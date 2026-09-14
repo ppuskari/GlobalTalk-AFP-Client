@@ -80,7 +80,10 @@ if not os.path.isfile(IMPL):
     print("Stable R7Q implementation missing: %s" % IMPL, file=sys.stderr)
     sys.exit(1)
 
-with open(IMPL, "r") as handle:
+# Do not let Jessie/Python 3.4 decode our own UTF-8 source using an ASCII
+# process locale.  The implementation may itself contain classic-Mac Unicode
+# examples and diagnostics.
+with io.open(IMPL, "r", encoding="utf-8") as handle:
     source = handle.read()
 
 history_block = '''                    if tty and now - last_history >= 10.0:\n                        clear_live(True)\n                        print(status)\n                        last_history = now\n\n'''
