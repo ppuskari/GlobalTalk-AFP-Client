@@ -90,6 +90,12 @@ python3 -m py_compile "$ROOT/scripts/gt-pull-stable.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7s-putty.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-putty.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7q.py"
+
+# Exercise the complete nested R7S -> PuTTY -> R7Q source transforms.  --help
+# exits from argparse before any AFP connection is attempted, but stale UI
+# guards or transform syntax errors still fail the build here.
+python3 "$ROOT/scripts/gt-pull-stable.py" --help >/dev/null
+
 sh -n "$ROOT/scripts/gt-afp-browser.sh"
 
 echo
