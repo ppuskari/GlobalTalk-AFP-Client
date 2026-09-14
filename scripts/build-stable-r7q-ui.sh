@@ -73,6 +73,7 @@ strings "$PULL" | grep -F 'R7I.2: resume identity mismatch' >/dev/null || {
 
 python3 -m py_compile "$ROOT/tools/apply_retry_existing_r7q.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7q.py"
+python3 -m py_compile "$ROOT/scripts/gt-pull-stable-putty.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable.py"
 python3 -m py_compile "$ROOT/scripts/gt-afp-browser.py"
 
@@ -80,6 +81,7 @@ echo
 echo "Stable R7Q retry-safe UI build ready."
 echo "  AFP profile:       7 sends / 2 sec / 50 ms"
 echo "  progress:          R7P authoritative AFP payload"
+echo "  PuTTY display:      one physical live line, terminal-width capped"
 echo "  existing match:    exact size + preserved mtime => skip data"
 echo "  skipped metadata:  FinderInfo/resource fork refreshed"
 echo "  existing mismatch: overwrite from byte zero"
