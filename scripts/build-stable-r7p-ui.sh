@@ -3,11 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-sh "$ROOT/scripts/build-stable-r7.sh"
-python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7p.py"
-python3 -m py_compile "$ROOT/scripts/gt-pull-stable.py"
-python3 -m py_compile "$ROOT/scripts/gt-afp-browser.py"
-
-echo
-echo "R7P authoritative progress UI validated."
-echo "Run: $ROOT/scripts/gt-afp-browser.sh"
+# R7Q supersedes the R7P-only UI build.  Keep this historical command as a
+# compatibility entrypoint so an operator cannot accidentally rebuild a
+# progress-only binary and lose retry-safe existing-file handling.
+exec sh "$ROOT/scripts/build-stable-r7q-ui.sh"
