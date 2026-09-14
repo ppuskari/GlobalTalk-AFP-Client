@@ -13,12 +13,15 @@
 #   4. read gt-afp-pull stdout as raw bytes and decode explicitly as UTF-8
 #      with replacement, preventing ASCII-locale UnicodeDecodeError crashes;
 #   5. on a catalog directory-list failure, reset local AFP state and retry
-#      that same directory once before falling back to live-only progress.
+#      that same directory once before falling back to live-only progress;
+#   6. force terminal stdout/stderr and the per-run text log to UTF-8 so
+#      filenames in diagnostics cannot raise UnicodeEncodeError.
 #
 # No AFP request, retry, recovery, metadata, or filesystem semantics change.
 
 from __future__ import print_function
 
+import io
 import os
 import sys
 
@@ -55,6 +58,24 @@ def utf8_argv(argv):
     return result
 
 
+def force_utf8_stream(stream):
+    """Rewrap a Python 3.4 stdio text stream as UTF-8 without closing fd."""
+    try:
+        if str(getattr(stream, "encoding", "")).lower().replace("-", "") == "utf8":
+            return stream
+        raw = stream.detach()
+        return io.TextIOWrapper(
+            raw, encoding="utf-8", errors="replace", line_buffering=True)
+    except (AttributeError, io.UnsupportedOperation, ValueError):
+        return stream
+
+
+# Jessie may start Python with LANG/LC_ALL effectively ASCII.  Make our own
+# operator-facing output byte-clean before the transformed implementation can
+# print a classic Mac filename such as ƒ or any other non-ASCII character.
+sys.stdout = force_utf8_stream(sys.stdout)
+sys.stderr = force_utf8_stream(sys.stderr)
+
 if not os.path.isfile(IMPL):
     print("Stable R7Q implementation missing: %s" % IMPL, file=sys.stderr)
     sys.exit(1)
@@ -63,7 +84,6 @@ with open(IMPL, "r") as handle:
     source = handle.read()
 
 history_block = '''                    if tty and now - last_history >= 10.0:\n                        clear_live(True)\n                        print(status)\n                        last_history = now\n\n'''
-
 if history_block not in source:
     print("R7Q PuTTY shim: expected history block not found; refusing stale transform.",
           file=sys.stderr)
@@ -125,6 +145,14 @@ if reader_block not in source:
           file=sys.stderr)
     sys.exit(1)
 source = source.replace(reader_block, reader_replacement, 1)
+
+log_open_block = '''    with open(logpath, "w") as logfile:\n'''
+log_open_replacement = '''    with open(logpath, "w", encoding="utf-8", errors="replace") as logfile:\n'''
+if log_open_block not in source:
+    print("R7Q PuTTY shim: logfile encoding guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(log_open_block, log_open_replacement, 1)
 
 code = compile(source, IMPL, "exec")
 globals_dict = {
