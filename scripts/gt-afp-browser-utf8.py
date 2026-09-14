@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # UTF-8-safe launcher for the interactive AFP browser on Python 3.4/Jessie.
-# The browser itself stays unchanged; this shim rewrites only subprocess argv
-# boundaries so classic Mac filenames are passed as explicit UTF-8 bytes even
-# when Python reports an ASCII filesystem encoding.
+# The browser itself stays unchanged; this shim makes both subprocess argv and
+# operator-facing terminal output independent of the host's ASCII locale.
 
 from __future__ import print_function
 
+import io
 import os
 import sys
 
@@ -41,6 +41,20 @@ def utf8_argv(argv):
             result.append(item)
     return result
 
+
+def force_utf8_stream(stream):
+    try:
+        if str(getattr(stream, "encoding", "")).lower().replace("-", "") == "utf8":
+            return stream
+        raw = stream.detach()
+        return io.TextIOWrapper(
+            raw, encoding="utf-8", errors="replace", line_buffering=True)
+    except (AttributeError, io.UnsupportedOperation, ValueError):
+        return stream
+
+
+sys.stdout = force_utf8_stream(sys.stdout)
+sys.stderr = force_utf8_stream(sys.stderr)
 
 if not os.path.isfile(IMPL):
     print("AFP browser implementation missing: %s" % IMPL, file=sys.stderr)
