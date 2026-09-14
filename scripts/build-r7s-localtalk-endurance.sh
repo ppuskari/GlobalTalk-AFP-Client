@@ -87,6 +87,7 @@ grep -F 'GLOBALTALK RECOVERY DID MULTISLASH R7R' \
 
 python3 -m py_compile "$ROOT/tools/apply_localtalk_endurance_r7s.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable.py"
+python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7s-putty.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-putty.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7q.py"
 sh -n "$ROOT/scripts/gt-afp-browser.sh"
