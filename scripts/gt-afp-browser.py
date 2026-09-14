@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Interactive GlobalTalk AFP browser/downloader.
+# Stable R7 profile: 7 ATP sends, 2-second timer, 50-ms pacing.
 # Debian Jessie / Python 3.4 compatible.
 
 from __future__ import print_function
@@ -15,8 +16,8 @@ import termios
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-LS = os.path.join(ROOT, "build-native-atp-r1", "gt-afp-ls")
-PULL = os.path.join(ROOT, "scripts", "gt-pull-r6.sh")
+LS = os.path.join(ROOT, "build-stable-r7", "gt-afp-ls")
+PULL = os.path.join(ROOT, "scripts", "gt-pull-stable.py")
 RESET = os.path.join(ROOT, "scripts", "gt-afp-reset.sh")
 DEFAULT_DOWNLOAD_ROOT = "/mnt/AFPSERVER/128G2/AFPFILES2"
 
@@ -157,6 +158,11 @@ def make_url(server, zone, volume=None, parts=None):
 
 def compat_env(enabled):
     env = os.environ.copy()
+    # Stable R7 compatibility profile.  afpsld inherits the ATP send count at
+    # process startup, so the browser resets it when profile/date mode changes.
+    env["GT_AFP_R7K_ATP_SENDS"] = "7"
+    env["GT_AFP_R7K_INTERFILE_MS"] = "50"
+    env["GT_AFP_R7M_SKIP_POISON_CLOSE"] = "0"
     if enabled:
         env["GT_AFP_DATE_COMPAT"] = "legacy1900"
     else:
@@ -224,13 +230,13 @@ def default_download_root():
     return DEFAULT_DOWNLOAD_ROOT
 
 
-def download_node(server, zone, volume, parts, env):
+def download_node(server, zone, volume, parts, env, recursive):
     remote = make_url(server, zone, volume, parts)
     leaf = parts[-1] if parts else volume
     suggested = os.path.join(default_download_root(), leaf)
 
     print()
-    print("Remote base:")
+    print("Remote selection:")
     print(remote)
     print()
     print("Local destination")
@@ -244,18 +250,24 @@ def download_node(server, zone, volume, parts, env):
     dest = os.path.expanduser(dest)
 
     print()
-    print("Download base:")
-    print("  remote: %s" % remote)
-    print("  local:  %s" % dest)
-    print("  mode:   R6.2 persistent recursive AFP session")
+    print("Download:")
+    print("  remote:  %s" % remote)
+    print("  local:   %s" % dest)
+    print("  kind:    %s" % ("directory tree" if recursive else "single file"))
+    print("  profile: Stable R7 / 7 sends / 50 ms / R7L recovery")
+    print("  meter:   aggregate data + resource/AppleDouble activity")
     try:
-        answer = input("Start recursive download? [y/N] ").strip().lower()
+        answer = input("Start download? [y/N] ").strip().lower()
     except EOFError:
         return
     if answer not in ("y", "yes"):
         return
 
-    rc = subprocess.call(["sh", PULL, remote, dest], env=env)
+    command = [sys.executable, PULL]
+    if recursive:
+        command.append("-r")
+    command.extend(["--dest", dest, remote])
+    rc = subprocess.call(command, env=env)
     print()
     print("Downloader exit status: %d" % rc)
     pause()
@@ -272,15 +284,16 @@ def browse_volume(server, zone, volume, compat):
             return compat
 
         print()
-        print("GlobalTalk AFP Browser")
-        print("======================")
+        print("GlobalTalk AFP Browser - Stable R7")
+        print("==================================")
         print("Zone:   %s" % zone)
         print("Server: %s" % server)
         print("Share:  %s" % volume)
         print("Path:   /%s" % "/".join(parts))
         print("Dates:  %s" % (
             "classic Finder compatibility" if compat else "AFP standard"))
-        print("Pull:   R6.2 persistent recursive session")
+        print("Pull:   7 sends / 50 ms / R7L recovery / R7I.2 identity")
+        print("Dest:   %s/<selected source name>" % default_download_root())
         print()
 
         for idx, entry in enumerate(entries, 1):
@@ -292,8 +305,8 @@ def browse_volume(server, zone, volume, compat):
         print()
         print("Commands:")
         print("  number   enter directory")
-        print("  d        download current directory as base")
-        print("  g N      download numbered file/directory as base")
+        print("  d        download current directory")
+        print("  g N      download numbered file/directory")
         print("  u        go up")
         print("  c        toggle classic Finder date compatibility")
         print("  q        back to shares")
@@ -316,12 +329,12 @@ def browse_volume(server, zone, volume, compat):
                 return compat
             continue
         if low == "d":
-            download_node(server, zone, volume, parts, env)
+            download_node(server, zone, volume, parts, env, True)
             continue
         if low == "c":
             compat = not compat
             env = compat_env(compat)
-            print("Restarting afpsld so it inherits the new date mode...")
+            print("Restarting afpsld so it inherits the stable/date profile...")
             reset_daemon(env)
             continue
         if low.startswith("g "):
@@ -332,7 +345,8 @@ def browse_volume(server, zone, volume, compat):
             if 1 <= pos <= len(entries):
                 target = entries[pos - 1]
                 download_node(server, zone, volume,
-                              parts + [target["name"]], env)
+                              parts + [target["name"]], env,
+                              target["dir"])
             continue
 
         try:
@@ -351,8 +365,9 @@ def browse_volume(server, zone, volume, compat):
 def main():
     for path in (LS, PULL):
         if not os.path.exists(path):
-            print("Required component not found: %s" % path, file=sys.stderr)
-            print("Build first with: sh scripts/build-filedates-r6-2.sh",
+            print("Required stable component not found: %s" % path,
+                  file=sys.stderr)
+            print("Build first with: sh scripts/build-stable-r7.sh",
                   file=sys.stderr)
             return 1
 
@@ -362,6 +377,10 @@ def main():
 
     compat = os.environ.get("GT_AFP_DATE_COMPAT") in (
         "1", "legacy1900", "finder")
+
+    # Ensure any daemon left by a development trial cannot leak a different
+    # retry count into the stable browser session.
+    reset_daemon(compat_env(compat))
 
     while True:
         zones = discover_zones()
