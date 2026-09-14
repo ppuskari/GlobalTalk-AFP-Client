@@ -15,4 +15,17 @@ if not os.path.isfile(IMPL):
           file=sys.stderr)
     sys.exit(1)
 
-os.execv(sys.executable, [sys.executable, IMPL] + sys.argv[1:])
+args = list(sys.argv[1:])
+recursive = ("-r" in args or "--recursive" in args)
+preflight = os.environ.get("GT_AFP_PREFLIGHT", "0").strip().lower()
+preflight_enabled = preflight in ("1", "true", "yes", "on")
+
+# The current whole-tree preflight uses one gt-afp-ls process/session per
+# directory.  Several classic AFP servers tolerate the real long-lived pull
+# but become unable to accept a fresh login after repeated one-shot catalog
+# sessions.  Until the catalog walker is converted to a single AFP session,
+# recursive pulls therefore default to live-only progress.
+if recursive and not preflight_enabled and "--no-preflight" not in args:
+    args.insert(0, "--no-preflight")
+
+os.execv(sys.executable, [sys.executable, IMPL] + args)
