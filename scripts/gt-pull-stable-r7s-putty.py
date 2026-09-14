@@ -26,7 +26,7 @@ if anchor not in shim:
           file=sys.stderr)
     sys.exit(1)
 
-inject = r'''
+inject = r"""
 # GLOBALTALK LOCALTALK ENDURANCE R7S - presentation/accounting layer.
 # A resumed file's R7P total includes bytes committed by a previous process,
 # while R7P delta contains only bytes delivered during this process.  Keep
@@ -97,7 +97,7 @@ if old not in source:
     sys.exit(1)
 source = source.replace(old, new, 1)
 
-'''
+"""
 
 shim = shim.replace(anchor, inject + anchor, 1)
 code = compile(shim, BASE, "exec")
