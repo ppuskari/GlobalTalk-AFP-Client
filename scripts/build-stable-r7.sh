@@ -46,6 +46,7 @@ strings "$PULL" | grep -F 'GT_AFP_R7K_INTERFILE_MS' >/dev/null || {
 }
 
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable.py"
+python3 -m py_compile "$ROOT/scripts/gt-pull-stable-total.py"
 python3 -m py_compile "$ROOT/scripts/gt-afp-browser.py"
 sh -n "$ROOT/scripts/gt-afp-browser.sh"
 
@@ -58,6 +59,7 @@ echo "Data recovery:        R7L bounded six-cycle state machine"
 echo "Resume identity:      R7I.2 nonzero CNID + exact fork size"
 echo "Recovery timing:      R7M retained for diagnostics"
 echo "Poison-close skip:    disabled"
+echo "Whole-tree progress:  optional lightweight catalog preflight"
 echo "Default destination:  /mnt/AFPSERVER/128G2/AFPFILES2"
 echo "Interactive browser:  scripts/gt-afp-browser.sh"
 echo "Direct pull:          scripts/gt-pull-stable.py"
