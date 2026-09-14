@@ -7,6 +7,7 @@
 
 from __future__ import print_function
 
+import io
 import os
 import sys
 
@@ -17,7 +18,10 @@ if not os.path.isfile(BASE):
     print("R7S base PuTTY shim missing: %s" % BASE, file=sys.stderr)
     sys.exit(1)
 
-with open(BASE, "r") as handle:
+# Jessie commonly runs this project with an ASCII locale.  The parent shim
+# intentionally contains classic-Mac examples such as ƒ, so never let Python
+# 3.4 choose the process locale for decoding our own UTF-8 source files.
+with io.open(BASE, "r", encoding="utf-8") as handle:
     shim = handle.read()
 
 anchor = 'code = compile(source, IMPL, "exec")\n'
