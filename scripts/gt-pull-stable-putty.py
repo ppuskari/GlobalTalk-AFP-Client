@@ -9,7 +9,11 @@
 #   2. clamp live TTY status to the current terminal width;
 #   3. pass AFP URLs/path arguments to POSIX child processes as explicit
 #      UTF-8 bytes so Python 3.4 running in an ASCII locale cannot reject
-#      classic Mac names such as the florin character (U+0192).
+#      classic Mac names such as the florin character (U+0192);
+#   4. read gt-afp-pull stdout as raw bytes and decode explicitly as UTF-8
+#      with replacement, preventing ASCII-locale UnicodeDecodeError crashes;
+#   5. on a catalog directory-list failure, reset local AFP state and retry
+#      that same directory once before falling back to live-only progress.
 #
 # No AFP request, retry, recovery, metadata, or filesystem semantics change.
 
@@ -64,22 +68,16 @@ if history_block not in source:
     print("R7Q PuTTY shim: expected history block not found; refusing stale transform.",
           file=sys.stderr)
     sys.exit(1)
-
 source = source.replace(history_block, "", 1)
 
 write_block = '''                    if tty:\n                        sys.stdout.write("\\r\\033[K" + status)\n                        sys.stdout.flush()\n                    elif now - last_history >= 5.0:\n'''
-
 write_replacement = '''                    if tty:\n                        try:\n                            columns = shutil.get_terminal_size((160, 24)).columns\n                        except Exception:\n                            columns = 160\n                        if columns > 8 and len(status) >= columns:\n                            status = status[:columns - 2] + ">"\n                        sys.stdout.write("\\r\\033[K" + status)\n                        sys.stdout.flush()\n                    elif now - last_history >= 5.0:\n'''
-
 if write_block not in source:
     print("R7Q PuTTY shim: expected live-write block not found; refusing stale transform.",
           file=sys.stderr)
     sys.exit(1)
-
 source = source.replace(write_block, write_replacement, 1)
 
-# Python 3.4 on the Jessie host can report an ASCII filesystem encoding.
-# Normalize any surrogateescaped command-line URL/path back to UTF-8 text.
 parse_block = '''    args = build_parser().parse_args()\n\n'''
 parse_replacement = '''    args = build_parser().parse_args()\n    args.url = normalize_cli_text(args.url)\n    args.dest = normalize_cli_text(args.dest) if args.dest is not None else None\n    args.local_path = (normalize_cli_text(args.local_path)\n                       if args.local_path is not None else None)\n\n'''
 if parse_block not in source:
@@ -88,7 +86,6 @@ if parse_block not in source:
     sys.exit(1)
 source = source.replace(parse_block, parse_replacement, 1)
 
-# Catalog gt-afp-ls calls may contain non-ASCII child directory names.
 ls_block = '''        proc = subprocess.Popen(\n            [LS, url], stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n'''
 ls_replacement = '''        proc = subprocess.Popen(\n            utf8_argv([LS, url]), stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n'''
 if ls_block not in source:
@@ -97,7 +94,14 @@ if ls_block not in source:
     sys.exit(1)
 source = source.replace(ls_block, ls_replacement, 1)
 
-# Direct selections may themselves contain non-ASCII names.
+preflight_block = '''        rc, text = run_ls(child_url, env)\n        if rc:\n            return None, "listing failed at %s (rc=%d)" % (child_url, rc)\n\n        dirs += 1\n'''
+preflight_replacement = '''        rc, text = run_ls(child_url, env)\n        if rc:\n            first_rc = rc\n            first_text = text\n            reset_daemon(env)\n            time.sleep(1.0)\n            rc, text = run_ls(child_url, env)\n            if rc:\n                detail = (text.strip() or first_text.strip()).replace("\\n", " | ")\n                if len(detail) > 240:\n                    detail = detail[-240:]\n                suffix = (": " + detail) if detail else ""\n                return None, ("listing failed at %s "\n                              "(rc=%d; retry rc=%d)%s" %\n                              (child_url, first_rc, rc, suffix))\n\n        dirs += 1\n'''
+if preflight_block not in source:
+    print("R7Q PuTTY shim: catalog retry guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(preflight_block, preflight_replacement, 1)
+
 pull_block = '''        proc = subprocess.Popen(\n            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n'''
 pull_replacement = '''        proc = subprocess.Popen(\n            utf8_argv(command), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n'''
 if pull_block not in source:
@@ -105,6 +109,22 @@ if pull_block not in source:
           file=sys.stderr)
     sys.exit(1)
 source = source.replace(pull_block, pull_replacement, 1)
+
+text_mode_block = '''            universal_newlines=True, bufsize=1, env=env)\n'''
+text_mode_replacement = '''            bufsize=0, env=env)\n'''
+if text_mode_block not in source:
+    print("R7Q PuTTY shim: subprocess text-mode guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(text_mode_block, text_mode_replacement, 1)
+
+reader_block = '''def reader(proc, output_queue, logfile):\n    try:\n        while True:\n            line = proc.stdout.readline()\n            if line == "":\n                break\n            logfile.write(line)\n            logfile.flush()\n            output_queue.put(line.rstrip("\\n"))\n    finally:\n        output_queue.put(None)\n'''
+reader_replacement = '''def reader(proc, output_queue, logfile):\n    try:\n        while True:\n            raw = proc.stdout.readline()\n            if raw == b"" or raw == "":\n                break\n            if isinstance(raw, bytes):\n                line = raw.decode("utf-8", "replace")\n            else:\n                line = raw\n            logfile.write(line)\n            logfile.flush()\n            output_queue.put(line.rstrip("\\n"))\n    finally:\n        output_queue.put(None)\n'''
+if reader_block not in source:
+    print("R7Q PuTTY shim: reader guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(reader_block, reader_replacement, 1)
 
 code = compile(source, IMPL, "exec")
 globals_dict = {
