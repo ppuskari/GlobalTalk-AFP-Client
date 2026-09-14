@@ -8,10 +8,10 @@ import os
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-r7q.py")
+IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-putty.py")
 
 if not os.path.isfile(IMPL):
-    print("Stable R7Q retry/progress implementation missing: %s" % IMPL,
+    print("Stable R7Q PuTTY UI shim missing: %s" % IMPL,
           file=sys.stderr)
     sys.exit(1)
 
