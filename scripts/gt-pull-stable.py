@@ -8,18 +8,17 @@ import os
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-putty.py")
+IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-r7s-putty.py")
 STATE_ROOT = os.path.join(ROOT, "logs", "resume-state")
 
 if not os.path.isfile(IMPL):
-    print("Stable R7Q/R7S PuTTY UI shim missing: %s" % IMPL,
+    print("Stable R7S PuTTY UI shim missing: %s" % IMPL,
           file=sys.stderr)
     sys.exit(1)
 
-# R7S keeps its checkpoint/provenance records outside the downloaded Macintosh
-# tree.  The C layer additionally keys each record by remote path + local path
-# and refuses resume unless nonzero AFP CNID + exact remote size still match.
-# An explicit operator override remains available for testing/relocation.
+# R7S keeps checkpoint/provenance records outside the downloaded Macintosh
+# tree.  The C layer keys each record by remote path + local path and refuses
+# resume unless nonzero AFP CNID + exact remote size still match.
 if "GT_AFP_R7S_STATE_DIR" not in os.environ:
     if not os.path.isdir(STATE_ROOT):
         try:
