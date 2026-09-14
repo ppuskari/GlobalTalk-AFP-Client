@@ -18,4 +18,10 @@ if not os.path.isfile(IMPL):
           file=sys.stderr)
     sys.exit(1)
 
-os.execv(sys.executable, [sys.executable, IMPL] + sys.argv[1:])
+argv = [sys.executable, IMPL] + sys.argv[1:]
+preflight = os.environ.get("GT_AFP_PREFLIGHT", "1").strip().lower()
+if preflight in ("0", "no", "off", "false"):
+    if "--no-preflight" not in argv:
+        argv.insert(2, "--no-preflight")
+
+os.execv(sys.executable, argv)
