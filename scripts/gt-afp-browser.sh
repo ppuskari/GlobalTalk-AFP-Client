@@ -8,4 +8,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 : "${GT_AFP_DOWNLOAD_ROOT:=/mnt/AFPSERVER/128G2/AFPFILES2}"
 export GT_AFP_DOWNLOAD_ROOT
 
-exec python3 "$ROOT/scripts/gt-afp-browser.py" "$@"
+# Jessie/Python 3.4 may expose an ASCII filesystem encoding.  The UTF-8 shim
+# preserves classic Mac filenames at subprocess argv boundaries without
+# requiring a system locale change.
+exec python3 "$ROOT/scripts/gt-afp-browser-utf8.py" "$@"
