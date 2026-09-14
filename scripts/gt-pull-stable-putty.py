@@ -3,13 +3,15 @@
 #
 # PuTTY-friendly Stable R7Q UI shim.
 #
-# Execute the tested R7Q implementation after applying two presentation-only
-# source transforms in memory:
+# Execute the tested R7Q implementation after applying presentation/launcher
+# compatibility transforms in memory:
 #   1. remove the deliberate 10-second permanent history line;
-#   2. clamp live TTY status to the current terminal width so PuTTY cannot
-#      soft-wrap a long progress line and advance the scrollback.
+#   2. clamp live TTY status to the current terminal width;
+#   3. pass AFP URLs/path arguments to POSIX child processes as explicit
+#      UTF-8 bytes so Python 3.4 running in an ASCII locale cannot reject
+#      classic Mac names such as the florin character (U+0192).
 #
-# No AFP, retry, recovery, metadata, or filesystem behavior is changed.
+# No AFP request, retry, recovery, metadata, or filesystem semantics change.
 
 from __future__ import print_function
 
@@ -18,6 +20,36 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-r7q.py")
+
+
+def normalize_cli_text(value):
+    """Recover UTF-8 argv text that Python 3.4 decoded with surrogateescape."""
+    if value is None or isinstance(value, bytes):
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return value
+    try:
+        raw = os.fsencode(value)
+    except (UnicodeEncodeError, AttributeError):
+        return value
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return value
+
+
+def utf8_argv(argv):
+    """Return POSIX argv as bytes, explicitly UTF-8 encoded."""
+    result = []
+    for item in argv:
+        if isinstance(item, bytes):
+            result.append(item)
+        elif isinstance(item, str):
+            result.append(normalize_cli_text(item).encode("utf-8"))
+        else:
+            result.append(item)
+    return result
+
 
 if not os.path.isfile(IMPL):
     print("Stable R7Q implementation missing: %s" % IMPL, file=sys.stderr)
@@ -46,10 +78,40 @@ if write_block not in source:
 
 source = source.replace(write_block, write_replacement, 1)
 
+# Python 3.4 on the Jessie host can report an ASCII filesystem encoding.
+# Normalize any surrogateescaped command-line URL/path back to UTF-8 text.
+parse_block = '''    args = build_parser().parse_args()\n\n'''
+parse_replacement = '''    args = build_parser().parse_args()\n    args.url = normalize_cli_text(args.url)\n    args.dest = normalize_cli_text(args.dest) if args.dest is not None else None\n    args.local_path = (normalize_cli_text(args.local_path)\n                       if args.local_path is not None else None)\n\n'''
+if parse_block not in source:
+    print("R7Q PuTTY shim: parser guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(parse_block, parse_replacement, 1)
+
+# Catalog gt-afp-ls calls may contain non-ASCII child directory names.
+ls_block = '''        proc = subprocess.Popen(\n            [LS, url], stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n'''
+ls_replacement = '''        proc = subprocess.Popen(\n            utf8_argv([LS, url]), stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n'''
+if ls_block not in source:
+    print("R7Q PuTTY shim: catalog subprocess guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(ls_block, ls_replacement, 1)
+
+# Direct selections may themselves contain non-ASCII names.
+pull_block = '''        proc = subprocess.Popen(\n            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n'''
+pull_replacement = '''        proc = subprocess.Popen(\n            utf8_argv(command), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n'''
+if pull_block not in source:
+    print("R7Q PuTTY shim: pull subprocess guard not found; refusing stale transform.",
+          file=sys.stderr)
+    sys.exit(1)
+source = source.replace(pull_block, pull_replacement, 1)
+
 code = compile(source, IMPL, "exec")
 globals_dict = {
     "__name__": "__main__",
     "__file__": IMPL,
     "__package__": None,
+    "normalize_cli_text": normalize_cli_text,
+    "utf8_argv": utf8_argv,
 }
 exec(code, globals_dict)
