@@ -6,10 +6,15 @@ CLIENT="$ROOT/work/netatalk-client"
 OUT="$ROOT/build-stable-r7"
 OBJ="$OUT/obj"
 ATPR1="$ROOT/legacy/atalk-r1/libatalk-atp-r1.a"
-VERSION="0.9.5-ddp-native-atp-stable-r7q"
+VERSION="0.9.5-ddp-native-atp-stable-r7q-r7r"
 
 # First reconstruct Stable R7 + R7P authoritative progress telemetry.
 sh "$ROOT/scripts/build-stable-r7.sh"
+
+# R7R: recovery-only DID priming must tolerate //dir/file paths.
+python3 "$ROOT/tools/apply_recovery_did_multislash_r7r.py" "$CLIENT"
+grep 'GLOBALTALK RECOVERY DID MULTISLASH R7R' \
+    "$CLIENT/cmdline/cmdline_afp.c" >/dev/null
 
 # Add retry-safe handling for already-completed destination files.
 python3 "$ROOT/tools/apply_retry_existing_r7q.py" "$CLIENT"
@@ -31,7 +36,7 @@ INCLUDES="$INCLUDES -I$ROOT/legacy -I/usr/local/include"
 
 CMD_OBJ="$OBJ/cmdline_cmdline_afp_c.o"
 
-echo "CC  cmdline/cmdline_afp.c (Stable R7 + R7P + R7Q)"
+echo "CC  cmdline/cmdline_afp.c (Stable R7 + R7P + R7Q + R7R)"
 "$CC" $CFLAGS $INCLUDES \
     -include "$ROOT/legacy/legacy_compat.h" \
     -c "$CLIENT/cmdline/cmdline_afp.c" -o "$CMD_OBJ"
@@ -39,7 +44,7 @@ echo "CC  cmdline/cmdline_afp.c (Stable R7 + R7P + R7Q)"
 LIBS="$ATPR1 -lpthread -ldl"
 PULL="$OUT/gt-afp-pull"
 
-echo "LD  $PULL (Stable R7 + R7P + R7Q)"
+echo "LD  $PULL (Stable R7 + R7P + R7Q + R7R)"
 "$CC" -o "$PULL" \
     "$OBJ/native_atp.o" \
     "$OBJ"/lib_*.o \
@@ -71,6 +76,13 @@ strings "$PULL" | grep -F 'R7I.2: resume identity mismatch' >/dev/null || {
     exit 1
 }
 
+grep -F 'GLOBALTALK RECOVERY DID MULTISLASH R7R' \
+    "$CLIENT/cmdline/cmdline_afp.c" >/dev/null || {
+    echo "ERROR: R7R recovery DID slash fix missing." >&2
+    exit 1
+}
+
+python3 -m py_compile "$ROOT/tools/apply_recovery_did_multislash_r7r.py"
 python3 -m py_compile "$ROOT/tools/apply_retry_existing_r7q.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-r7q.py"
 python3 -m py_compile "$ROOT/scripts/gt-pull-stable-putty.py"
@@ -80,13 +92,14 @@ python3 -m py_compile "$ROOT/scripts/gt-afp-browser-utf8.py"
 sh -n "$ROOT/scripts/gt-afp-browser.sh"
 
 echo
-echo "Stable R7Q retry-safe UI build ready."
+echo "Stable R7Q + R7R recovery-hotfix build ready."
 echo "  AFP profile:       7 sends / 2 sec / 50 ms"
 echo "  progress:          R7P authoritative AFP payload"
-echo "  PuTTY display:      one physical live line, terminal-width capped"
-echo "  UTF-8 paths:        explicit UTF-8 argv on Jessie/Python 3.4"
+echo "  recovery DID:      repeated / separators tolerated"
+echo "  PuTTY display:     one physical live line, terminal-width capped"
+echo "  UTF-8 paths:       explicit UTF-8 argv on Jessie/Python 3.4"
 echo "  existing match:    exact size + preserved mtime => skip data"
 echo "  skipped metadata:  FinderInfo/resource fork refreshed"
 echo "  existing mismatch: overwrite from byte zero"
-echo "  partial resume:     never trusted across separate processes"
-echo "  browser:            $ROOT/scripts/gt-afp-browser.sh"
+echo "  partial resume:    never trusted across separate processes"
+echo "  browser:           $ROOT/scripts/gt-afp-browser.sh"
