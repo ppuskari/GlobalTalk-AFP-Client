@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-only
-# Stable R7 user entrypoint.
+# Stable R7/R7S user entrypoint.
 
 from __future__ import print_function
 
@@ -9,11 +9,25 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IMPL = os.path.join(ROOT, "scripts", "gt-pull-stable-putty.py")
+STATE_ROOT = os.path.join(ROOT, "logs", "resume-state")
 
 if not os.path.isfile(IMPL):
-    print("Stable R7Q PuTTY UI shim missing: %s" % IMPL,
+    print("Stable R7Q/R7S PuTTY UI shim missing: %s" % IMPL,
           file=sys.stderr)
     sys.exit(1)
+
+# R7S keeps its checkpoint/provenance records outside the downloaded Macintosh
+# tree.  The C layer additionally keys each record by remote path + local path
+# and refuses resume unless nonzero AFP CNID + exact remote size still match.
+# An explicit operator override remains available for testing/relocation.
+if "GT_AFP_R7S_STATE_DIR" not in os.environ:
+    if not os.path.isdir(STATE_ROOT):
+        try:
+            os.makedirs(STATE_ROOT)
+        except OSError:
+            if not os.path.isdir(STATE_ROOT):
+                raise
+    os.environ["GT_AFP_R7S_STATE_DIR"] = STATE_ROOT
 
 args = list(sys.argv[1:])
 recursive = ("-r" in args or "--recursive" in args)
